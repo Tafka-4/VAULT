@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--vault-ink: oklch(14.1% 0.005 285.823);
+	--vault-paper: oklch(86.9% 0.005 56.366);
+
+	/* fallback */
+	--vault-ink-fallback: #09090b;
+	--vault-paper-fallback: #d6d3d1;
+}
+
+@supports (color: oklch(50% 0 0)) {
+	.bg-ink-oklch {
+		background-color: var(--vault-ink);
+	}
+	.text-paper-oklch {
+		color: var(--vault-paper);
+	}
+	.border-paper-oklch {
+		border-color: color(from var(--vault-paper) oklch l c h / 0.16);
+	}
+}
+
+@supports not (color: oklch(50% 0 0)) {
+	.bg-ink-oklch {
+		background-color: var(--vault-ink-fallback);
+	}
+	.text-paper-oklch {
+		color: var(--vault-paper-fallback);
+	}
+	.border-paper-oklch {
+		border-color: color-mix(
+			in srgb,
+			var(--vault-paper-fallback) 16%,
+			transparent
+		);
+	}
+}
+
+.div {
+	@apply active:scale-[0.98] transition-transform focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus-visible:shadow-vault;
+}
+
+@layer utilities {
+	@supports (color: oklch(50% 0 0)) {
+		.ring-surface {
+			--tw-ring-opacity: 1;
+			--tw-ring-color: color(from var(--vault-paper) oklch l c h / 0.12);
+		}
+	}
+
+	@supports not (color: oklch(50% 0 0)) {
+		.ring-surface {
+			--tw-ring-opacity: 1;
+			--tw-ring-color: color-mix(
+				in srgb,
+				var(--vault-paper-fallback) 12%,
+				transparent
+			);
+		}
+	}
+}
