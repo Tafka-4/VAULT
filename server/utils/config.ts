@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'pathe';
 import { customAlphabet } from 'nanoid';
 
@@ -23,26 +24,55 @@ const DEFAULT_SESSION_DAYS = 14;
 const DEFAULT_CHUNK_SIZE = 64 * 1024; // 64 KiB fits the KMS plaintext limit comfortably
 const MAX_CHUNK_ALLOWED = 98_000;
 
+function ensureWritableDirectory(path: string) {
+  fs.mkdirSync(path, { recursive: true });
+  fs.accessSync(path, fs.constants.W_OK);
+}
+
+function resolveDataDir(): string {
+  const defaultDir = resolve(process.cwd(), 'server/.data');
+  const tempDir = resolve(tmpdir(), 'vault-data');
+  const configuredDir = process.env.STORAGE_DATA_DIR
+    ? resolve(process.env.STORAGE_DATA_DIR)
+    : null;
+  let lastError: unknown;
+
+  if (configuredDir) {
+    try {
+      ensureWritableDirectory(configuredDir);
+      return configuredDir;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[config] Unable to use STORAGE_DATA_DIR=${configuredDir}, falling back to ${defaultDir}`, error);
+    }
+  }
+
+  try {
+    ensureWritableDirectory(defaultDir);
+    return defaultDir;
+  } catch (error) {
+    lastError = error;
+    console.warn(`[config] Unable to use default storage directory ${defaultDir}, attempting ${tempDir}`, error);
+  }
+
+  try {
+    ensureWritableDirectory(tempDir);
+    console.warn(`[config] Using temporary storage directory ${tempDir}; data will not persist between restarts.`);
+    return tempDir;
+  } catch (error) {
+    lastError = error;
+  }
+
+  const message = lastError instanceof Error
+    ? lastError.message
+    : 'unknown error';
+  throw new Error(`[config] Unable to find a writable storage directory. Last error: ${message}`);
+}
+
 export function getAppConfig(): AppConfig {
   if (cached) return cached;
 
-  let dataDir = process.env.STORAGE_DATA_DIR
-    ? resolve(process.env.STORAGE_DATA_DIR)
-    : resolve(process.cwd(), 'server/.data');
-
-  try {
-    fs.mkdirSync(dataDir, { recursive: true });
-  } catch (error) {
-    if (process.env.STORAGE_DATA_DIR) {
-      const fallback = resolve(process.cwd(), 'server/.data');
-      fs.mkdirSync(fallback, { recursive: true });
-      // eslint-disable-next-line no-console
-      console.warn(`[config] Unable to use STORAGE_DATA_DIR=${dataDir}, falling back to ${fallback}`, error);
-      dataDir = fallback;
-    } else {
-      throw error;
-    }
-  }
+  const dataDir = resolveDataDir();
 
   const chunkSizeEnv = Number(process.env.STORAGE_CHUNK_SIZE);
   const chunkSize = Number.isFinite(chunkSizeEnv) && chunkSizeEnv > 1024
