@@ -7,7 +7,7 @@
         <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 class="text-2xl font-extrabold">내 스토리지</h1>
-            <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 실시간 암호화 저장소</p>
+            <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
           <div id="search" class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <div class="flex grow items-center gap-2 rounded-2xl bg-black/35 px-4 py-3 ring-1 ring-surface">
@@ -16,7 +16,7 @@
               </svg>
               <input
                 type="search"
-                placeholder="프로토타입, 계약서..."
+                placeholder="계약서..."
                 v-model="search"
                 class="w-full bg-transparent text-sm text-paper-oklch placeholder:text-paper-oklch/45 focus:outline-none"
               />

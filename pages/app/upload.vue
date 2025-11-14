@@ -12,7 +12,12 @@
       <div class="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <form class="space-y-6 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface" @submit.prevent>
           <div
-            class="rounded-[1.75rem] border-2 border-dashed border-white/15 bg-black/30 p-6 text-center text-sm text-paper-oklch/70"
+            class="rounded-[1.75rem] border-2 border-dashed border-white/15 bg-black/30 p-6 text-center text-sm text-paper-oklch/70 transition"
+            :class="{ 'border-white/40 bg-black/20 shadow-lg shadow-white/10': dragActive }"
+            @dragenter.prevent="handleDragEnter"
+            @dragover.prevent="handleDragOver"
+            @dragleave.prevent="handleDragLeave"
+            @drop.prevent="handleDrop"
           >
             <div class="mx-auto flex max-w-xs flex-col items-center gap-4">
               <div class="grid size-14 place-items-center rounded-full bg-white/10 ring-1 ring-surface">
@@ -127,7 +132,9 @@ type FilesResponse = { data: StoredFile[] }
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
-const nuxtApp = useNuxtApp()
+const dragActive = ref(false)
+let dragDepth = 0
+const requestFetch = useRequestFetch()
 
 const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-upload'
@@ -135,11 +142,10 @@ const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/file
 
 const recentUploads = computed(() => data.value?.data.slice(0, 3) ?? [])
 
-const handleFiles = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  if (!input.files?.length) return
-
-  const newItems: UploadItem[] = Array.from(input.files).map(file => ({
+const queueFiles = (fileList: FileList | File[]) => {
+  const files = Array.from(fileList)
+  if (!files.length) return
+  const newItems: UploadItem[] = files.map(file => ({
     id: nanoid(8),
     name: file.name,
     size: file.size,
@@ -149,8 +155,42 @@ const handleFiles = (event: Event) => {
   }))
 
   uploads.value = [...uploads.value, ...newItems]
-  input.value = ''
   void processQueue()
+}
+
+const handleFiles = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.length) return
+  queueFiles(input.files)
+  input.value = ''
+}
+
+const handleDragEnter = (event: DragEvent) => {
+  event.preventDefault()
+  dragDepth += 1
+  dragActive.value = true
+}
+
+const handleDragOver = (event: DragEvent) => {
+  event.preventDefault()
+}
+
+const handleDragLeave = (event: DragEvent) => {
+  event.preventDefault()
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) {
+    dragActive.value = false
+  }
+}
+
+const handleDrop = (event: DragEvent) => {
+  event.preventDefault()
+  dragDepth = 0
+  dragActive.value = false
+  const files = event.dataTransfer?.files
+  if (files?.length) {
+    queueFiles(files)
+  }
 }
 
 const processQueue = async () => {
@@ -164,7 +204,7 @@ const processQueue = async () => {
       const formData = new FormData()
       formData.append('file', item.file)
       try {
-        await nuxtApp.$fetch('/api/files', {
+        await requestFetch('/api/files', {
           method: 'POST',
           body: formData,
           credentials: 'include'
