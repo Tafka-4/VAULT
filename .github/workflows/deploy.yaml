@@ -1,0 +1,43 @@
+name: Deploy to dev
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: [ self-hosted ]
+    environment: deploy
+    concurrency:
+      group: dev-test-deploy
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: private key permissions
+        run: |
+            install -m 700 -d ~/.ssh
+            mkdir -p /tmp/
+            echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > /tmp/key
+            chmod 600 /tmp/key
+            ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+
+      - name: Rsync manually
+        run: |
+          rsync -avz --delete --exclude='.git' --exclude='.env' -e "ssh -i /tmp/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/Nyanko/
+
+      - name: Create .env file on remote
+        run: |
+          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo "${{ secrets.ENV }}" | base64 -d > ~/Nyanko/.env'
+
+      - name: Run deploy.sh remotely
+        run: |
+          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "chmod +x ~/Nyanko/deploy.sh && cd ~/Nyanko && ./deploy.sh"
+
+      - name: Remove ssh key
+        run: rm /tmp/key
