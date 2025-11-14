@@ -29,15 +29,15 @@ jobs:
 
       - name: Rsync manually
         run: |
-          rsync -avz --delete --exclude='.git' --exclude='.env' -e "ssh -i /tmp/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/Nyanko/
+          rsync -avz --delete --exclude='.git' --exclude='.env' -e "ssh -i /tmp/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/VAULT/
 
       - name: Create .env file on remote
         run: |
-          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo "${{ secrets.ENV }}" | base64 -d > ~/Nyanko/.env'
+          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo "${{ secrets.ENV }}" | base64 -d > ~/VAULT/.env'
 
       - name: Run deploy.sh remotely
         run: |
-          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "chmod +x ~/Nyanko/deploy.sh && cd ~/Nyanko && ./deploy.sh"
+          ssh -i /tmp/key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "chmod +x ~/VAULT/deploy.sh && cd ~/VAULT && ./deploy.sh"
 
       - name: Remove ssh key
         run: rm /tmp/key
