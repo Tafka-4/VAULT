@@ -11,20 +11,13 @@
         @submit.prevent="handleRegister"
       >
         <div class="space-y-2 text-left">
-          <label for="name" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">이름</label>
-          <input
-            id="name"
-            type="text"
-            placeholder="Joy Park"
-            class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-          />
-        </div>
-        <div class="space-y-2 text-left">
           <label for="email" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">이메일</label>
           <input
             id="email"
             type="email"
             placeholder="you@vault.app"
+            v-model="email"
+            required
             class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
@@ -33,15 +26,32 @@
           <input
             id="password"
             type="password"
-            placeholder="최소 12자"
+            placeholder="최소 8자"
+            v-model="password"
+            minlength="8"
+            required
             class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
+        <div class="space-y-2 text-left">
+          <label for="verificationCode" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">검증 코드</label>
+          <input
+            id="verificationCode"
+            type="text"
+            placeholder="초대 코드 입력"
+            v-model="verificationCode"
+            minlength="8"
+            required
+            class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
+          />
+        </div>
+        <p v-if="errorMessage" class="text-xs text-red-200/80">{{ errorMessage }}</p>
         <button
           type="submit"
-          class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white"
+          :disabled="pending"
+          class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
         >
-          가입 완료
+          {{ pending ? '확인 중...' : '가입 완료' }}
         </button>
       </form>
       <NuxtLink to="/login" class="block text-xs text-paper-oklch/50 hover:text-paper-oklch/80">이미 계정이 있나요? 로그인</NuxtLink>
@@ -50,7 +60,30 @@
 </template>
 
 <script setup lang="ts">
-const handleRegister = () => {
-  navigateTo('/app')
+import { ref } from 'vue'
+import { getErrorMessage } from '~/utils/errorMessage'
+
+const auth = useAuth()
+const email = ref('')
+const password = ref('')
+const verificationCode = ref('')
+const pending = ref(false)
+const errorMessage = ref('')
+
+const handleRegister = async () => {
+  errorMessage.value = ''
+  pending.value = true
+  try {
+    await auth.register({
+      email: email.value,
+      password: password.value,
+      verificationCode: verificationCode.value
+    })
+    await navigateTo('/app')
+  } catch (error) {
+    errorMessage.value = getErrorMessage(error) || '가입에 실패했습니다.'
+  } finally {
+    pending.value = false
+  }
 }
 </script>

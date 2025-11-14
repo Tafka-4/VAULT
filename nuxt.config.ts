@@ -4,7 +4,7 @@ export default defineNuxtConfig({
 	typescript: { strict: true },
 	app: {
 		head: {
-			title: "VAULT — Mobile-First Cloud Storage",
+			title: "VAULT — Cloud Storage",
 			meta: [
 				{
 					name: "viewport",

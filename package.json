@@ -6,10 +6,15 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "generate": "nuxt generate"
+    "generate": "nuxt generate",
+    "code:show": "node scripts/showVerificationCode.mjs"
   },
   "dependencies": {
-    "nuxt": "^3.19.2"
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.6.0",
+    "nanoid": "^5.0.8",
+    "nuxt": "^3.19.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",

@@ -1,0 +1,24 @@
+services:
+  vault:
+    build:
+      context: .
+    container_name: vault-app
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      KMS_BASE_URL: ${KMS_BASE_URL}
+      KMS_CLIENT_TOKEN: ${KMS_CLIENT_TOKEN}
+      REGISTRATION_SEED: ${REGISTRATION_SEED}
+      STORAGE_DATA_DIR: /data
+    volumes:
+      - ~/data:/data
+
+  cloudflare:
+    image: cloudflare/cloudflared:latest
+    container_name: vault-cloudflare
+    depends_on:
+      - vault
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run

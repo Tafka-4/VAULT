@@ -22,7 +22,7 @@
               </div>
               <div class="space-y-2">
                 <p class="text-paper-oklch">파일을 끌어놓거나 업로드 버튼을 눌러주세요</p>
-                <p class="text-xs text-paper-oklch/50">용량 제한 없음 · 이미지, 비디오, 문서 지원</p>
+                <p class="text-xs text-paper-oklch/50">선택 즉시 AES-256으로 암호화되어 서버에 저장됩니다.</p>
               </div>
               <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-white/90 px-6 py-2 text-xs font-semibold text-black transition hover:bg-white">
                 파일 선택
@@ -36,22 +36,34 @@
               <span class="uppercase text-lg font-bold text-paper-oklch/55">업로드 진행</span>
               <NuxtLink to="/app/logs" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">활동 보기</NuxtLink>
             </div>
-            <div v-if="queuedFiles.length" class="space-y-3">
+            <div v-if="uploads.length" class="space-y-3">
               <div
-                v-for="file in queuedFiles"
-                :key="file.name"
-                class="rounded-2xl bg-black/35 px-4 py-3 text-sm ring-1 ring-surface"
+                v-for="item in uploads"
+                :key="item.id"
+                class="space-y-2 rounded-2xl bg-black/35 px-4 py-3 text-sm ring-1 ring-surface"
               >
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="font-medium">{{ file.name }}</p>
-                    <p class="text-xs text-paper-oklch/55">{{ file.detail }}</p>
+                <div class="flex items-center justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="truncate font-medium">{{ item.name }}</p>
+                    <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }}</p>
                   </div>
-                  <span class="text-xs text-paper-oklch/45">{{ file.status }}</span>
+                  <span
+                    class="text-xs font-semibold"
+                    :class="item.status === 'error' ? 'text-red-200/80' : 'text-paper-oklch/45'"
+                  >
+                    {{ statusLabel(item) }}
+                  </span>
                 </div>
-                <div class="mt-3 h-1.5 rounded-full bg-white/10">
-                  <div class="h-full rounded-full bg-white/70" :style="{ width: file.progress }" />
+                <div class="h-1.5 rounded-full bg-white/10">
+                  <div
+                    class="h-full rounded-full transition-all"
+                    :class="item.status === 'error' ? 'bg-red-300/80' : 'bg-white/70'"
+                    :style="{ width: `${item.progress}%` }"
+                  ></div>
                 </div>
+                <p v-if="item.message && item.status === 'error'" class="text-xs text-red-200/80">
+                  {{ item.message }}
+                </p>
               </div>
             </div>
             <div v-else class="rounded-2xl bg-black/30 px-4 py-5 text-sm text-paper-oklch/55 ring-1 ring-surface">
@@ -71,19 +83,20 @@
                 목록 열기
               </NuxtLink>
             </div>
-            <ul class="space-y-2 text-sm text-paper-oklch/70">
-              <li
+            <div v-if="recentUploads.length" class="space-y-2 text-sm text-paper-oklch/70">
+              <div
                 v-for="item in recentUploads"
-                :key="item.name"
+                :key="item.id"
                 class="flex items-center justify-between rounded-xl bg-black/30 px-3 py-3 ring-1 ring-surface"
               >
                 <div>
                   <p class="font-medium">{{ item.name }}</p>
-                  <p class="text-xs text-paper-oklch/55">{{ item.detail }}</p>
+                  <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }} · {{ new Date(item.updatedAt).toLocaleString('ko-KR') }}</p>
                 </div>
-                <NuxtLink :to="item.to" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">보기</NuxtLink>
-              </li>
-            </ul>
+                <NuxtLink :to="`/app/file-preview/${item.id}`" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">보기</NuxtLink>
+              </div>
+            </div>
+            <p v-else class="text-xs text-paper-oklch/55">아직 업로드 기록이 없습니다.</p>
           </div>
         </aside>
       </div>
@@ -92,36 +105,104 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { nanoid } from 'nanoid'
+import { getErrorMessage } from '~/utils/errorMessage'
+import type { StoredFile } from '~/types/storage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
-const queuedFiles = ref<{
+type UploadItem = {
+  id: string
   name: string
-  detail: string
-  progress: string
-  status: string
-}[]>([])
+  size: number
+  progress: number
+  status: 'pending' | 'uploading' | 'done' | 'error'
+  message?: string
+  file: File
+}
 
-const recentUploads = [
-  { name: 'Kickoff-notes.pdf', detail: '어제 · 12MB', to: '/app/file-preview?file=kickoff' },
-  { name: 'Scene-A3.mov', detail: '2일 전 · 420MB', to: '/app/file-preview?file=scene-a3' },
-  { name: 'Brand-guide.fig', detail: '이번 주 · 85MB', to: '/app/file-preview?file=brand-guide' }
-]
+type FilesResponse = { data: StoredFile[] }
+
+const uploads = ref<UploadItem[]>([])
+const uploading = ref(false)
+const nuxtApp = useNuxtApp()
+
+const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/files', {
+  key: 'files-upload'
+})
+
+const recentUploads = computed(() => data.value?.data.slice(0, 3) ?? [])
 
 const handleFiles = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
 
-  const files = Array.from(input.files).map(file => ({
+  const newItems: UploadItem[] = Array.from(input.files).map(file => ({
+    id: nanoid(8),
     name: file.name,
-    detail: `${(file.size / (1024 * 1024)).toFixed(1)}MB · 업로드 준비`,
-    progress: '12%',
-    status: '대기'
+    size: file.size,
+    progress: 0,
+    status: 'pending',
+    file
   }))
 
-  queuedFiles.value = [...queuedFiles.value, ...files]
+  uploads.value = [...uploads.value, ...newItems]
   input.value = ''
+  void processQueue()
+}
+
+const processQueue = async () => {
+  if (uploading.value) return
+  uploading.value = true
+  try {
+    for (const item of uploads.value) {
+      if (item.status !== 'pending') continue
+      item.status = 'uploading'
+      item.progress = 30
+      const formData = new FormData()
+      formData.append('file', item.file)
+      try {
+        await nuxtApp.$fetch('/api/files', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        })
+        item.progress = 100
+        item.status = 'done'
+        item.message = '완료'
+        await refreshFiles()
+      } catch (error) {
+        item.status = 'error'
+        item.progress = 0
+        item.message = getErrorMessage(error) || '업로드 실패'
+      }
+    }
+  } finally {
+    uploading.value = false
+  }
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const order = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, order)
+  return `${value.toFixed(order === 0 ? 0 : 1)}${units[order]}`
+}
+
+const statusLabel = (item: UploadItem) => {
+  switch (item.status) {
+    case 'pending':
+      return '대기 중'
+    case 'uploading':
+      return '암호화/업로드 중'
+    case 'done':
+      return '완료'
+    case 'error':
+    default:
+      return '실패'
+  }
 }
 </script>

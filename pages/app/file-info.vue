@@ -4,7 +4,7 @@
 
     <section class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-8">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <NuxtLink to="/app/file-preview" class="inline-flex items-center gap-2 text-sm text-paper-oklch/70 hover:text-paper-oklch">
+        <NuxtLink to="/app" class="inline-flex items-center gap-2 text-sm text-paper-oklch/70 hover:text-paper-oklch">
           <div class="grid size-7 place-items-center rounded-xl bg-white/5 ring-1 ring-surface">
             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7" />

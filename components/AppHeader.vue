@@ -20,15 +20,16 @@
         </div>
         <span class="text-base font-semibold">VAULT</span>
       </NuxtLink>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <NuxtLink
-          v-if="showLogin"
+          v-if="showLoginLink"
           to="/login"
           class="tap-area hidden rounded-xl px-3 py-2 text-sm text-paper-oklch/80 ring-1 ring-surface transition hover:bg-white/5 hover:text-paper-oklch sm:inline-flex"
         >
           로그인
         </NuxtLink>
         <NuxtLink
+          v-if="isAuthenticated"
           to="/app/upload"
           class="tap-area inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-sm font-semibold text-black hover:bg-white"
         >
@@ -37,6 +38,18 @@
           </svg>
           새 업로드
         </NuxtLink>
+        <div v-if="isAuthenticated" class="flex items-center gap-2">
+          <div class="grid size-9 place-items-center rounded-full bg-white/10 text-sm font-semibold uppercase ring-1 ring-surface">
+            {{ userInitial }}
+          </div>
+          <button
+            type="button"
+            class="tap-area rounded-xl px-3 py-2 text-sm text-paper-oklch/80 ring-1 ring-surface hover:bg-white/5 hover:text-paper-oklch"
+            @click="handleLogout"
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -45,7 +58,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+const auth = useAuth()
 const route = useRoute()
 
-const showLogin = computed(() => !route.path.startsWith('/app') && route.path !== '/login')
+const isAuthenticated = computed(() => Boolean(auth.user.value))
+const showLoginLink = computed(() => !isAuthenticated.value && route.path !== '/login')
+const userInitial = computed(() => auth.user.value?.email?.[0]?.toUpperCase() ?? 'U')
+
+const handleLogout = async () => {
+  await auth.logout()
+  if (route.path.startsWith('/app')) {
+    await navigateTo('/login')
+  }
+}
 </script>

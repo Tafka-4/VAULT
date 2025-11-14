@@ -62,18 +62,22 @@
       <section class="space-y-4">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold">검색 결과</h2>
-          <span class="text-xs text-paper-oklch/55">총 {{ results.length }}개</span>
+          <span class="text-xs text-paper-oklch/55">
+            {{ pending ? '검색 중...' : `총 ${results.length}개` }}
+          </span>
         </div>
         <div class="rounded-[1.75rem] bg-white/5 p-3 ring-1 ring-surface">
           <div class="rounded-[1.25rem] bg-black/30 p-2">
             <FileRow
+              v-if="results.length"
               v-for="item in results"
-              :key="item.name"
-              :icon="item.icon"
+              :key="item.id"
+              :icon="item.mimeType.startsWith('image/') ? 'image' : 'file'"
               :name="item.name"
-              :detail="item.detail"
-              :to="item.to"
+              :detail="`${formatBytes(item.size)} · ${formatRelative(item.updatedAt)}`"
+              :to="`/app/file-preview/${item.id}`"
             />
+            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">조건에 맞는 파일이 없습니다.</p>
           </div>
         </div>
       </section>
@@ -82,84 +86,104 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watchEffect } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
+import type { StoredFile } from '~/types/storage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
+type PresetKey = 'recent' | 'shared' | 'secure'
+
 const route = useRoute()
 const router = useRouter()
+const presetOrder: PresetKey[] = ['recent', 'shared', 'secure']
 
-const presetOrder = ['recent', 'shared', 'secure'] as const
+const preset = ref<PresetKey>((route.query.preset as PresetKey) || 'recent')
+const keyword = ref('')
 
-const state = reactive({
-  keyword: '',
-  preset: 'recent' as (typeof presetOrder)[number]
-})
-
-const presetLabels: Record<(typeof presetOrder)[number], string> = {
+const presetLabels: Record<PresetKey, string> = {
   recent: '최근 기록',
-  shared: '공유 중',
-  secure: '보안 파일'
+  shared: '이름순',
+  secure: '대형/보안 파일'
 }
 
-const resultMap = {
-  recent: [
-    { icon: 'file', name: '서비스-프레임워크.pdf', detail: '문서 · 8.6MB · 오늘 수정', to: '/app/file-preview?file=framework' },
-    { icon: 'image', name: 'Moodboard-08.jpg', detail: '이미지 · Joy 업로드 · 5분 전', to: '/app/file-preview?file=moodboard' },
-    { icon: 'folder', name: '캠페인 공유', detail: '폴더 · 24개 항목 · 지난주', to: '/app/file-preview?file=campaign' }
-  ],
-  shared: [
-    { icon: 'folder', name: '프로덕션 자료실', detail: '편집 권한 · 팀 5명', to: '/app/share-settings' },
-    { icon: 'file', name: '파트너계약서.zip', detail: '문서 · 암호화 · 어제 공유', to: '/app/file-preview?file=contract' },
-    { icon: 'image', name: 'Spotlight.mov', detail: '비디오 · 외부 링크 · 만료 3일 후', to: '/app/file-preview?file=spotlight' }
-  ],
-  secure: [
-    { icon: 'lock', name: '인증자료.key', detail: '보안 키 · 2단계 확인 필요', to: '/app/file-info?file=credential' },
-    { icon: 'file', name: '임원보고서.pdf', detail: '문서 · 암호 보호 · 열람 2회', to: '/app/file-info?file=board-report' },
-    { icon: 'lock', name: '보관함', detail: '폴더 · 콜드 스토리지', to: '/app/file-info?file=archive' }
-  ]
-}
-
-type PresetKey = keyof typeof resultMap
+const { data, pending, refresh } = await useFetch<{ data: StoredFile[] }>('/api/files', { key: 'files-search' })
+const files = computed(() => data.value?.data ?? [])
 
 const presets = computed(() =>
   presetOrder.map(value => ({
     value,
     label: presetLabels[value],
-    active: state.preset === value
+    active: preset.value === value
   }))
 )
 
 const applyPreset = (value: PresetKey) => {
-  state.preset = value
+  preset.value = value
   router.replace({ query: { ...route.query, preset: value } })
 }
 
 const clearFilters = () => {
-  state.keyword = ''
+  keyword.value = ''
   applyPreset('recent')
 }
 
-const results = computed(() => {
-  if (!state.keyword) return resultMap[state.preset]
-  const keyword = state.keyword.toLowerCase()
-  return resultMap[state.preset].filter(item => item.name.toLowerCase().includes(keyword))
+const filteredByPreset = computed(() => {
+  const list = [...files.value]
+  switch (preset.value) {
+    case 'recent':
+      return list.sort((a, b) => b.updatedAt - a.updatedAt)
+    case 'shared':
+      return list.sort((a, b) => a.name.localeCompare(b.name))
+    case 'secure':
+      return list
+        .filter(file => file.mimeType.includes('zip') || file.name.toLowerCase().includes('key') || file.size > 25 * 1024 * 1024)
+        .sort((a, b) => b.size - a.size)
+    default:
+      return list
+  }
 })
 
-const activeChips = computed(() => [presetLabels[state.preset], state.keyword ? `키워드 · ${state.keyword}` : '키워드 없음'])
+const results = computed(() => {
+  const base = filteredByPreset.value
+  const term = keyword.value.trim().toLowerCase()
+  if (!term) return base
+  return base.filter(file => file.name.toLowerCase().includes(term))
+})
+
+const activeChips = computed(() => [
+  presetLabels[preset.value],
+  keyword.value ? `키워드 · ${keyword.value}` : '키워드 없음'
+])
 
 watchEffect(() => {
   const queryPreset = route.query.preset
   if (typeof queryPreset === 'string' && presetOrder.includes(queryPreset as PresetKey)) {
-    state.preset = queryPreset as PresetKey
+    preset.value = queryPreset as PresetKey
   }
 })
 
-const keyword = computed({
-  get: () => state.keyword,
-  set: value => {
-    state.keyword = value.trimStart()
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const order = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, order)
+  return `${value.toFixed(order === 0 ? 0 : 1)}${units[order]}`
+}
+
+const rtf = new Intl.RelativeTimeFormat('ko', { numeric: 'auto' })
+const formatRelative = (timestamp: number) => {
+  const diff = timestamp - Date.now()
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['day', 86_400_000],
+    ['hour', 3_600_000],
+    ['minute', 60_000]
+  ]
+  for (const [unit, ms] of units) {
+    if (Math.abs(diff) >= ms || unit === 'minute') {
+      return rtf.format(Math.round(diff / ms), unit)
+    }
   }
-})
+  return '지금'
+}
 </script>

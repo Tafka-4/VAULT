@@ -69,7 +69,7 @@
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
             <div class="flex items-center justify-between">
               <h2 class="text-base font-semibold">즐겨찾는 공유 폴더</h2>
-              <NuxtLink to="/app/file-preview" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">열기</NuxtLink>
+              <NuxtLink to="/app" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">열기</NuxtLink>
             </div>
             <ul class="space-y-2 text-sm text-paper-oklch/70">
               <li

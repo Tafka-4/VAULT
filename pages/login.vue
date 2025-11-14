@@ -16,6 +16,8 @@
             id="email"
             type="email"
             placeholder="you@vault.app"
+            v-model="email"
+            required
             class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
@@ -25,14 +27,18 @@
             id="password"
             type="password"
             placeholder="••••••••"
+            v-model="password"
+            required
             class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
+        <p v-if="errorMessage" class="text-xs text-red-200/80">{{ errorMessage }}</p>
         <button
           type="submit"
-          class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white"
+          :disabled="pending"
+          class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
         >
-          로그인
+          {{ pending ? '확인 중...' : '로그인' }}
         </button>
       </form>
       <div class="space-y-2 text-xs text-paper-oklch/50">
@@ -44,7 +50,27 @@
 </template>
 
 <script setup lang="ts">
-const handleLogin = () => {
-  navigateTo('/app')
+import { ref } from 'vue'
+import { getErrorMessage } from '~/utils/errorMessage'
+
+const auth = useAuth()
+const route = useRoute()
+const email = ref('')
+const password = ref('')
+const pending = ref(false)
+const errorMessage = ref('')
+
+const handleLogin = async () => {
+  errorMessage.value = ''
+  pending.value = true
+  try {
+    await auth.login({ email: email.value, password: password.value })
+    const redirect = (route.query.redirect as string) || '/app'
+    await navigateTo(redirect)
+  } catch (error) {
+    errorMessage.value = getErrorMessage(error) || '로그인에 실패했습니다.'
+  } finally {
+    pending.value = false
+  }
 }
 </script>
