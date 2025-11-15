@@ -177,13 +177,16 @@ class KmsClient {
             if (typeof parsed === 'string') {
               message = parsed;
             } else if (parsed && typeof parsed === 'object') {
-              message = parsed.message || parsed.error || message;
+              const extracted = extractMessage(parsed);
+              if (extracted) {
+                message = extracted;
+              }
             }
           }
         } catch (_error) {
           // ignore body parse errors
         }
-        return { error: { status: res.status, message } };
+        return { error: { status: res.status, message: ensureString(message) } };
       }
       const json = (await res.json()) as T;
       return json;
@@ -200,4 +203,25 @@ class KmsClient {
   }
 }
 
+function extractMessage(payload: Record<string, any>): string | null {
+  const keys = ['message', 'error', 'statusMessage', 'detail'];
+  for (const key of keys) {
+    if (!(key in payload)) continue;
+    const value = payload[key];
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+  }
+  if ('data' in payload && typeof payload.data === 'object' && payload.data) {
+    return extractMessage(payload.data as Record<string, any>);
+  }
+  return null;
+}
+
+function ensureString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (!value) return '';
+  return JSON.stringify(value);
+}
 export const kmsClient = new KmsClient();
