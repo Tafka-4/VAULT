@@ -16,7 +16,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000
 RUN addgroup -S vault && adduser -S -G vault vault
-RUN mkdir -p /data /app/server/.data && chown -R vault:vault /data /app/server
+RUN mkdir -p /data /mnt/data /app/server/.data && chown -R vault:vault /data /mnt/data /app/server
 
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/node_modules ./node_modules
