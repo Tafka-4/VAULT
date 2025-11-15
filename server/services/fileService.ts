@@ -117,47 +117,21 @@ export async function saveEncryptedFile(params: {
   }
 
   const chunks = chunkBuffer(buffer, cfg.chunkSize);
-  const fileId = nanoid(21);
   const dataKey = randomBytes(32);
   const wrappedKey = await kmsClient.encrypt(dataKey);
   const encryptedChunks = encryptChunksWithDataKey(chunks, dataKey);
   dataKey.fill(0);
 
-  const now = Date.now();
-  const file: FileRecord = {
-    id: fileId,
+  return persistEncryptedChunks({
     userId,
     name,
     mimeType,
     size: buffer.length,
     description,
     folderId,
-    wrappedKeyIv: wrappedKey.iv,
-    wrappedKeyTag: wrappedKey.tag,
-    wrappedKeyCiphertext: wrappedKey.ciphertext,
-    totalChunks: encryptedChunks.length,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const tx = db.transaction(() => {
-    insertFileStmt.run(file);
-    encryptedChunks.forEach((chunk: PreparedChunk) => {
-      insertChunkStmt.run({
-        id: chunk.id,
-        fileId: file.id,
-        chunkIndex: chunk.chunkIndex,
-        iv: chunk.iv,
-        tag: chunk.tag,
-        ciphertext: chunk.ciphertext,
-        size: chunk.size,
-        createdAt: now,
-      });
-    });
+    wrappedKey,
+    chunks: encryptedChunks,
   });
-
-  tx();
-  return file;
 }
 
 export function listFiles(userId: string, options: { folderId?: string | null } = {}): FileRecord[] {
@@ -195,6 +169,56 @@ export type PublicFileRecord = Omit<FileRecord, 'wrappedKeyIv' | 'wrappedKeyTag'
 export function toPublicFileRecord(file: FileRecord): PublicFileRecord {
   const { wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, ...rest } = file;
   return rest;
+}
+
+export async function persistEncryptedChunks(params: {
+  userId: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  description?: string | null;
+  folderId?: string | null;
+  wrappedKey: { iv: Buffer; tag: Buffer; ciphertext: Buffer };
+  chunks: PreparedChunk[];
+  fileId?: string;
+}): Promise<FileRecord> {
+  const fileId = params.fileId ?? nanoid(21);
+  const now = Date.now();
+  const totalChunks = params.chunks.length;
+  const file: FileRecord = {
+    id: fileId,
+    userId: params.userId,
+    name: params.name,
+    mimeType: params.mimeType,
+    size: params.size,
+    description: params.description ?? null,
+    folderId: params.folderId ?? null,
+    wrappedKeyIv: params.wrappedKey.iv,
+    wrappedKeyTag: params.wrappedKey.tag,
+    wrappedKeyCiphertext: params.wrappedKey.ciphertext,
+    totalChunks,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const tx = db.transaction(() => {
+    insertFileStmt.run(file);
+    params.chunks.forEach((chunk) => {
+      insertChunkStmt.run({
+        id: chunk.id,
+        fileId: file.id,
+        chunkIndex: chunk.chunkIndex,
+        iv: chunk.iv,
+        tag: chunk.tag,
+        ciphertext: chunk.ciphertext,
+        size: chunk.size,
+        createdAt: now,
+      });
+    });
+  });
+
+  tx();
+  return file;
 }
 
 function encryptChunksWithDataKey(chunks: Buffer[], key: Buffer): PreparedChunk[] {

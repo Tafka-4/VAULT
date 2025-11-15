@@ -164,8 +164,9 @@ type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
 
 const requestFetch = useRequestFetch()
-const CHUNK_UPLOAD_THRESHOLD_BYTES = 50 * 1024 * 1024
-const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
+const CHUNK_SIZE_BYTES = 10 * 1024 * 1024
+const CHUNK_UPLOAD_THRESHOLD_BYTES = CHUNK_SIZE_BYTES
+const CHUNK_UPLOAD_CONCURRENCY = 4
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
@@ -189,7 +190,32 @@ const selectedFolderOption = computed({
     targetFolderId.value = value === 'root' ? null : value
   }
 })
-const activeRequests = new Map<string, XMLHttpRequest>()
+const activeRequests = new Map<string, Set<XMLHttpRequest>>()
+
+const registerRequest = (uploadId: string, xhr: XMLHttpRequest) => {
+  if (!activeRequests.has(uploadId)) {
+    activeRequests.set(uploadId, new Set())
+  }
+  activeRequests.get(uploadId)!.add(xhr)
+}
+
+const unregisterRequest = (uploadId: string, xhr: XMLHttpRequest) => {
+  const set = activeRequests.get(uploadId)
+  if (!set) return
+  set.delete(xhr)
+  if (!set.size) {
+    activeRequests.delete(uploadId)
+  }
+}
+
+const abortActiveRequests = (uploadId: string) => {
+  const set = activeRequests.get(uploadId)
+  if (!set) return
+  for (const xhr of set) {
+    xhr.abort()
+  }
+  activeRequests.delete(uploadId)
+}
 
 const queueFiles = (fileList: FileList | File[]) => {
   const files = Array.from(fileList)
@@ -202,7 +228,7 @@ const queueFiles = (fileList: FileList | File[]) => {
     status: 'pending',
     file,
     folderId: targetFolderId.value,
-    uploadType: file.size > CHUNK_UPLOAD_THRESHOLD_BYTES ? 'chunked' : 'single',
+    uploadType: file.size >= CHUNK_UPLOAD_THRESHOLD_BYTES ? 'chunked' : 'single',
     shouldCancel: false
   }))
 
@@ -250,11 +276,7 @@ const cancelUpload = async (itemId: string) => {
   if (!item) return
   item.shouldCancel = true
   if (item.status === 'uploading') {
-    const req = activeRequests.get(item.id)
-    if (req) {
-      req.abort()
-      activeRequests.delete(item.id)
-    }
+    abortActiveRequests(item.id)
     item.status = 'error'
     item.progress = 0
     item.message = '취소됨'
@@ -315,7 +337,7 @@ const uploadSingleFile = (item: UploadItem) => {
     xhr.open('POST', '/api/files')
     xhr.withCredentials = true
     const startedAt = performance.now()
-    activeRequests.set(item.id, xhr)
+    registerRequest(item.id, xhr)
 
     xhr.upload.onprogress = event => {
       if (!event.lengthComputable) return
@@ -331,21 +353,21 @@ const uploadSingleFile = (item: UploadItem) => {
       const bytesPerSecond = item.size / (elapsed / 1000)
       item.speed = formatRate(bytesPerSecond)
       if (xhr.status >= 200 && xhr.status < 300) {
-        activeRequests.delete(item.id)
+        unregisterRequest(item.id, xhr)
         resolve()
         return
       }
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       reject(new Error(extractUploadError(xhr)))
     }
 
     xhr.onerror = () => {
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       reject(new Error('네트워크 오류로 업로드에 실패했습니다.'))
     }
 
     xhr.onabort = () => {
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       reject(new Error('사용자가 업로드를 취소했습니다.'))
     }
 
@@ -371,45 +393,74 @@ const uploadLargeFile = async (item: UploadItem) => {
   }
   item.sessionId = uploadId
   const startedAt = performance.now()
-  for (let index = 0; index < totalChunks; index++) {
-    if (item.shouldCancel) {
-      throw new Error('사용자가 업로드를 취소했습니다.')
-    }
-    const start = index * CHUNK_SIZE_BYTES
-    const end = Math.min(start + CHUNK_SIZE_BYTES, item.size)
-    const blob = item.file.slice(start, end)
-    await sendChunk(uploadId, index, totalChunks, blob, item, startedAt)
+  const chunkProgress = new Array(totalChunks).fill(0)
+  const updateOverallProgress = () => {
+    const totalLoaded = chunkProgress.reduce((sum, value) => sum + value, 0)
+    const denominator = Math.max(item.size, 1)
+    const percent = Math.min(99, Math.round((totalLoaded / denominator) * 100))
+    item.progress = percent
+    const elapsed = Math.max(performance.now() - startedAt, 1)
+    const bytesPerSecond = totalLoaded / (elapsed / 1000)
+    item.speed = formatRate(bytesPerSecond)
   }
+
+  const workerCount = Math.min(CHUNK_UPLOAD_CONCURRENCY, Math.max(totalChunks, 1))
+  let nextIndex = 0
+
+  const worker = async () => {
+    while (true) {
+      if (item.shouldCancel) {
+        throw new Error('사용자가 업로드를 취소했습니다.')
+      }
+      const current = nextIndex++
+      if (current >= totalChunks) break
+      const start = current * CHUNK_SIZE_BYTES
+      const end = Math.min(item.size, start + CHUNK_SIZE_BYTES)
+      const expectedSize = end - start
+      const blob = item.file.slice(start, end)
+      await sendChunk(uploadId, current, blob, expectedSize, item, chunkProgress, updateOverallProgress)
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, worker))
+
   if (item.shouldCancel) {
     throw new Error('사용자가 업로드를 취소했습니다.')
+  }
+
+  if (chunkProgress.length) {
+    updateOverallProgress()
   }
   await requestFetch(`/api/uploads/${uploadId}/complete`, { method: 'POST' })
   item.sessionId = undefined
 }
 
-const sendChunk = (uploadId: string, index: number, totalChunks: number, blob: Blob, item: UploadItem, startedAt: number) => {
+const sendChunk = (
+  uploadId: string,
+  index: number,
+  blob: Blob,
+  expectedSize: number,
+  item: UploadItem,
+  chunkProgress: number[],
+  onProgress: () => void
+) => {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `/api/uploads/${uploadId}/chunk?index=${index}`)
     xhr.withCredentials = true
-    activeRequests.set(item.id, xhr)
+    registerRequest(item.id, xhr)
 
     xhr.upload.onprogress = event => {
       if (!event.lengthComputable) return
-      const uploaded = (index * CHUNK_SIZE_BYTES) + event.loaded
-      const percent = Math.min(99, Math.round((uploaded / item.size) * 100))
-      item.progress = percent
-      const elapsed = Math.max(performance.now() - startedAt, 1)
-      const bytesPerSecond = uploaded / (elapsed / 1000)
-      item.speed = formatRate(bytesPerSecond)
+      chunkProgress[index] = Math.min(event.loaded, expectedSize)
+      onProgress()
     }
 
     xhr.onload = () => {
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       if (xhr.status >= 200 && xhr.status < 300) {
-        if (index === totalChunks - 1) {
-          item.progress = 99
-        }
+        chunkProgress[index] = expectedSize
+        onProgress()
         resolve()
         return
       }
@@ -417,12 +468,12 @@ const sendChunk = (uploadId: string, index: number, totalChunks: number, blob: B
     }
 
     xhr.onerror = () => {
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       reject(new Error('네트워크 오류로 업로드에 실패했습니다.'))
     }
 
     xhr.onabort = () => {
-      activeRequests.delete(item.id)
+      unregisterRequest(item.id, xhr)
       reject(new Error('사용자가 업로드를 취소했습니다.'))
     }
 
