@@ -28,6 +28,18 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS folders (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    parentId TEXT,
+    path TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    UNIQUE(userId, path),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parentId) REFERENCES folders(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS files (
     id TEXT PRIMARY KEY,
     userId TEXT NOT NULL,
@@ -35,10 +47,12 @@ db.exec(`
     mimeType TEXT NOT NULL,
     size INTEGER NOT NULL,
     description TEXT,
+    folderId TEXT,
     totalChunks INTEGER NOT NULL,
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (folderId) REFERENCES folders(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS file_chunks (
@@ -56,7 +70,24 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(tokenHash);
   CREATE INDEX IF NOT EXISTS idx_files_user ON files(userId, createdAt DESC);
+  CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(userId, parentId);
   CREATE INDEX IF NOT EXISTS idx_chunks_file ON file_chunks(fileId, chunkIndex);
 `);
+
+ensureColumn('files', 'folderId', `ALTER TABLE files ADD COLUMN folderId TEXT REFERENCES folders(id) ON DELETE SET NULL`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_files_folder ON files(folderId)');
+
+function ensureColumn(table: string, column: string, alterSql: string) {
+  const info = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  const hasColumn = info.some((row) => row.name === column);
+  if (!hasColumn) {
+    try {
+      db.exec(alterSql);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn(`[db] Failed to alter table ${table} to add ${column}`, error);
+    }
+  }
+}
 
 export default db;

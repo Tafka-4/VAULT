@@ -17,13 +17,16 @@
       </div>
     </div>
     <button
+      v-if="props.showDelete"
       type="button"
-      class="tap-area size-9 grid place-items-center rounded-xl hover:bg-white/10"
-      @click.stop
+      class="tap-area inline-flex items-center gap-1 rounded-xl px-3 py-1 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
+      :disabled="props.deleting"
+      @click.stop="emit('delete')"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 12h.01M12 12h.01M18 12h.01" />
+      <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
       </svg>
+      <span>{{ props.deleting ? '삭제 중...' : '삭제' }}</span>
     </button>
   </div>
 </template>
@@ -31,7 +34,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, type PropType } from 'vue'
 
-const props = defineProps<{ icon: IconName; name: string; detail: string; to?: string }>()
+const props = defineProps<{ icon: IconName; name: string; detail: string; to?: string; showDelete?: boolean; deleting?: boolean }>()
+const emit = defineEmits<{ (e: 'delete'): void }>()
 
 const rowClasses = computed(() => [
   'flex items-center justify-between border-b border-white/5 py-3 last:border-none transition-colors',

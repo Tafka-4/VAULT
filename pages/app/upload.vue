@@ -11,6 +11,18 @@
 
       <div class="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <form class="space-y-6 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface" @submit.prevent>
+          <div class="space-y-2 text-left">
+            <label class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">업로드 위치</label>
+            <select
+              v-model="selectedFolderOption"
+              class="w-full rounded-2xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-paper-oklch focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <option value="root">루트 폴더</option>
+              <option v-for="folder in folders" :key="folder.id" :value="folder.id">
+                {{ folder.path }}
+              </option>
+            </select>
+          </div>
           <div
             class="rounded-[1.75rem] border-2 border-dashed border-white/15 bg-black/30 p-6 text-center text-sm text-paper-oklch/70 transition"
             :class="{ 'border-white/40 bg-black/20 shadow-lg shadow-white/10': dragActive }"
@@ -116,7 +128,7 @@
 import { ref, computed } from 'vue'
 import { nanoid } from 'nanoid'
 import { getErrorMessage } from '~/utils/errorMessage'
-import type { StoredFile } from '~/types/storage'
+import type { StoredFile, StoredFolder } from '~/types/storage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
@@ -130,20 +142,34 @@ type UploadItem = {
   message?: string
   file: File
   speed?: string
+  folderId?: string | null
 }
 
 type FilesResponse = { data: StoredFile[] }
+type FoldersResponse = { data: StoredFolder[] }
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
 const dragActive = ref(false)
 let dragDepth = 0
+const targetFolderId = ref<string | null>(null)
 
 const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-upload'
 })
 
+const { data: foldersData, refresh: refreshFolders } = await useFetch<FoldersResponse>('/api/folders', {
+  key: 'folders-upload'
+})
+
 const recentUploads = computed(() => data.value?.data.slice(0, 3) ?? [])
+const folders = computed(() => foldersData.value?.data ?? [])
+const selectedFolderOption = computed({
+  get: () => (targetFolderId.value === null ? 'root' : targetFolderId.value || 'root'),
+  set: (value: string) => {
+    targetFolderId.value = value === 'root' ? null : value
+  }
+})
 
 const queueFiles = (fileList: FileList | File[]) => {
   const files = Array.from(fileList)
@@ -154,7 +180,8 @@ const queueFiles = (fileList: FileList | File[]) => {
     size: file.size,
     progress: 0,
     status: 'pending',
-    file
+    file,
+    folderId: targetFolderId.value
   }))
 
   uploads.value = [...uploads.value, ...newItems]
@@ -232,6 +259,9 @@ const uploadSingleFile = (item: UploadItem) => {
   return new Promise<void>((resolve, reject) => {
     const formData = new FormData()
     formData.append('file', item.file)
+    if (item.folderId !== undefined) {
+      formData.append('folderId', item.folderId === null ? 'root' : item.folderId)
+    }
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', '/api/files')

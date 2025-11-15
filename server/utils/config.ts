@@ -7,6 +7,7 @@ export type AppConfig = {
   dataDir: string;
   dbPath: string;
   chunkSize: number;
+  encryptConcurrency: number;
   sessionTtlMs: number;
   kmsBaseUrl: string;
   kmsClientToken: string;
@@ -21,8 +22,10 @@ let cached: AppConfig | null = null;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_SESSION_DAYS = 14;
-const DEFAULT_CHUNK_SIZE = 64 * 1024; // 64 KiB fits the KMS plaintext limit comfortably
+const DEFAULT_CHUNK_SIZE = 96_000; // Larger chunks reduce KMS round-trips while staying under the 131072 char base64 limit
 const MAX_CHUNK_ALLOWED = 98_000;
+const DEFAULT_ENCRYPT_CONCURRENCY = 4;
+const MAX_ENCRYPT_CONCURRENCY = 16;
 
 function ensureWritableDirectory(path: string) {
   fs.mkdirSync(path, { recursive: true });
@@ -82,6 +85,11 @@ export function getAppConfig(): AppConfig {
   const sessionDaysEnv = Number(process.env.STORAGE_SESSION_TTL_DAYS);
   const sessionDays = Number.isFinite(sessionDaysEnv) && sessionDaysEnv > 0 ? sessionDaysEnv : DEFAULT_SESSION_DAYS;
 
+  const encryptConcurrencyEnv = Number(process.env.STORAGE_ENCRYPT_CONCURRENCY);
+  const encryptConcurrency = Number.isFinite(encryptConcurrencyEnv) && encryptConcurrencyEnv > 0
+    ? Math.min(encryptConcurrencyEnv, MAX_ENCRYPT_CONCURRENCY)
+    : DEFAULT_ENCRYPT_CONCURRENCY;
+
   const requestTimeoutEnv = Number(process.env.KMS_REQUEST_TIMEOUT_MS);
   const kmsRequestTimeoutMs = Number.isFinite(requestTimeoutEnv) && requestTimeoutEnv >= 1000
     ? requestTimeoutEnv
@@ -92,6 +100,7 @@ export function getAppConfig(): AppConfig {
     dataDir,
     dbPath: resolve(dataDir, 'vault.db'),
     chunkSize,
+    encryptConcurrency,
     sessionTtlMs: sessionDays * DAY_MS,
     kmsBaseUrl: process.env.KMS_BASE_URL || 'http://localhost:3000',
     kmsClientToken: process.env.KMS_CLIENT_TOKEN || createToken(),

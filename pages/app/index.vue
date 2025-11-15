@@ -119,39 +119,196 @@
           </div>
         </div>
       </section>
+
+      <section id="library" class="grid gap-6 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,1.62fr)]">
+        <aside class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-semibold">폴더</h2>
+              <p class="text-xs text-paper-oklch/55">
+                {{ folderScope === 'all' ? '전체 파일 보기' : selectedFolder?.path || '루트 폴더' }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="tap-area inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-black hover:bg-white disabled:opacity-50"
+              :disabled="creatingFolder"
+              @click="createFolder"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
+              </svg>
+              새 폴더
+            </button>
+          </div>
+          <div class="mt-4 space-y-2">
+            <button
+              type="button"
+              class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+              :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+              @click="selectFolderScope('all')"
+            >
+              전체 파일
+            </button>
+            <button
+              type="button"
+              class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+              :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+              @click="selectFolderScope('root')"
+            >
+              루트 폴더
+            </button>
+            <div v-if="folders.length" class="space-y-1">
+              <button
+                v-for="folder in folders"
+                :key="folder.id"
+                type="button"
+                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
+                @click="selectFolderScope(folder.id)"
+              >
+                <p class="font-medium">{{ folder.name }}</p>
+                <p class="text-xs text-paper-oklch/55">{{ folder.path }}</p>
+              </button>
+            </div>
+            <p v-else class="text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
+          </div>
+        </aside>
+        <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-semibold">파일</h2>
+              <p class="text-xs text-paper-oklch/55">{{ filteredFiles.length }}개 표시</p>
+            </div>
+            <button
+              type="button"
+              class="tap-area rounded-full bg-white/10 px-4 py-2 text-xs text-paper-oklch/70 ring-1 ring-surface hover:bg-white/15"
+              @click="refresh"
+            >
+              새로고침
+            </button>
+          </div>
+          <div class="rounded-[1.25rem] bg-black/30 p-2">
+            <template v-if="filteredFiles.length">
+              <FileRow
+                v-for="file in filteredFiles"
+                :key="file.id"
+                :icon="iconForFile(file)"
+                :name="file.name"
+                :detail="detailForFile(file)"
+                :to="`/app/file-preview/${file.id}`"
+                show-delete
+                :deleting="Boolean(deleteState[file.id])"
+                @delete="deleteFile(file.id)"
+              />
+            </template>
+            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이 없습니다.</p>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { StoredFile } from '~/types/storage'
+import type { StoredFile, StoredFolder } from '~/types/storage'
+import { getErrorMessage } from '~/utils/errorMessage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
 type FilesResponse = { data: StoredFile[] }
+type FoldersResponse = { data: StoredFolder[] }
 
 const search = ref('')
 const quotaBytes = 512 * 1024 * 1024 * 1024 // 512GB
+const folderScope = ref<'all' | 'root' | string>('all')
+const requestFetch = useRequestFetch()
 
 const { data, pending, refresh } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-dashboard'
 })
 
+const { data: foldersData, refresh: refreshFolders } = await useFetch<FoldersResponse>('/api/folders', {
+  key: 'folders-dashboard'
+})
+
 const files = computed(() => data.value?.data ?? [])
+const folders = computed(() => foldersData.value?.data ?? [])
+
+const scopedFiles = computed(() => {
+  if (folderScope.value === 'all') return files.value
+  if (folderScope.value === 'root') return files.value.filter(file => !file.folderId)
+  return files.value.filter(file => file.folderId === folderScope.value)
+})
 
 const filteredFiles = computed(() => {
   const query = search.value.trim().toLowerCase()
-  if (!query) return files.value
-  return files.value.filter(file => file.name.toLowerCase().includes(query))
+  const scopeList = scopedFiles.value
+  if (!query) return scopeList
+  return scopeList.filter(file => file.name.toLowerCase().includes(query))
 })
 
-const recentFiles = computed(() => filteredFiles.value.slice(0, 5))
+const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 
 const pinnedFiles = computed(() =>
   [...files.value].sort((a, b) => b.size - a.size).slice(0, 2)
 )
+
+const selectedFolder = computed(() => {
+  if (folderScope.value === 'all') return null
+  if (folderScope.value === 'root') return { id: 'root', name: '루트', path: '/' }
+  return folders.value.find(folder => folder.id === folderScope.value) ?? null
+})
+
+const deleteState = ref<Record<string, boolean>>({})
+
+const setDeleteState = (id: string, value: boolean) => {
+  if (value) {
+    deleteState.value = { ...deleteState.value, [id]: true }
+  } else {
+    const { [id]: _removed, ...rest } = deleteState.value
+    deleteState.value = rest
+  }
+}
+
+const deleteFile = async (fileId: string) => {
+  if (!confirm('이 파일을 삭제하시겠습니까?')) return
+  if (deleteState.value[fileId]) return
+  setDeleteState(fileId, true)
+  try {
+    await requestFetch(`/api/files/${fileId}`, { method: 'DELETE' })
+    await refresh()
+  } catch (error) {
+    alert(getErrorMessage(error) || '파일 삭제에 실패했습니다.')
+  } finally {
+    setDeleteState(fileId, false)
+  }
+}
+
+const creatingFolder = ref(false)
+const createFolder = async () => {
+  const name = window.prompt('새 폴더 이름을 입력하세요.')
+  if (!name) return
+  creatingFolder.value = true
+  try {
+    const parentId = folderScope.value === 'all' ? null : folderScope.value === 'root' ? null : folderScope.value
+    await requestFetch('/api/folders', {
+      method: 'POST',
+      body: { name, parentId }
+    })
+    await refreshFolders()
+  } catch (error) {
+    alert(getErrorMessage(error) || '폴더를 생성할 수 없습니다.')
+  } finally {
+    creatingFolder.value = false
+  }
+}
+
+const selectFolderScope = (scope: 'all' | 'root' | string) => {
+  folderScope.value = scope
+}
 
 const pinnedGridColsClass = computed(() => {
   if (pinnedFiles.value.length === 0) return 'grid-cols-1'

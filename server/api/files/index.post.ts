@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, readMultipartFormData } from 'h3';
 import { requireAuth } from '~/server/utils/auth';
 import { saveEncryptedFile } from '~/server/services/fileService';
+import { assertFolderOwnership } from '~/server/services/folderService';
 
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event);
@@ -24,6 +25,17 @@ export default defineEventHandler(async (event) => {
 
   const descriptionField = form.find((part) => !part.filename && part.name === 'description');
   const description = descriptionField ? descriptionField.data.toString('utf8') : undefined;
+  const folderField = form.find((part) => !part.filename && part.name === 'folderId');
+  let folderId: string | null | undefined;
+  if (folderField) {
+    const rawFolder = folderField.data.toString('utf8').trim();
+    if (rawFolder === 'root' || rawFolder === '') {
+      folderId = null;
+    } else {
+      const folder = assertFolderOwnership(auth.user.id, rawFolder);
+      folderId = folder.id;
+    }
+  }
 
   try {
     const record = await saveEncryptedFile({
@@ -32,6 +44,7 @@ export default defineEventHandler(async (event) => {
       mimeType,
       buffer,
       description,
+      folderId,
     });
     return { data: record };
   } catch (error) {

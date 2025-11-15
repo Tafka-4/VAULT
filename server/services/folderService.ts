@@ -1,0 +1,98 @@
+import { nanoid } from 'nanoid';
+import db from '../utils/db';
+
+export type FolderRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  parentId: string | null;
+  path: string;
+  createdAt: number;
+};
+
+const insertFolderStmt = db.prepare(`
+  INSERT INTO folders (id, userId, name, parentId, path, createdAt)
+  VALUES (@id, @userId, @name, @parentId, @path, @createdAt)
+`);
+
+const selectFolderByIdStmt = db.prepare(`
+  SELECT id, userId, name, parentId, path, createdAt
+  FROM folders
+  WHERE id = ?
+`);
+
+const listFoldersByUserStmt = db.prepare(`
+  SELECT id, userId, name, parentId, path, createdAt
+  FROM folders
+  WHERE userId = ?
+  ORDER BY path COLLATE NOCASE ASC
+`);
+
+const listFoldersByParentStmt = db.prepare(`
+  SELECT id, userId, name, parentId, path, createdAt
+  FROM folders
+  WHERE userId = ? AND parentId IS ?
+  ORDER BY name COLLATE NOCASE ASC
+`);
+
+export function createFolder(userId: string, name: string, parentId: string | null = null): FolderRecord {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('폴더 이름을 입력하세요.');
+  }
+  if (trimmed.includes('/')) {
+    throw new Error('폴더 이름에 "/" 문자를 사용할 수 없습니다.');
+  }
+
+  let parentPath = '';
+  if (parentId) {
+    const parent = getFolderById(parentId);
+    if (!parent || parent.userId !== userId) {
+      throw new Error('상위 폴더를 찾을 수 없습니다.');
+    }
+    parentPath = parent.path;
+  }
+
+  const normalizedParent = parentPath && parentPath !== '/' ? parentPath : '';
+  const path = `${normalizedParent}/${trimmed}`.replace(/\/{2,}/g, '/');
+  const now = Date.now();
+  const record: FolderRecord = {
+    id: nanoid(21),
+    userId,
+    name: trimmed,
+    parentId,
+    path: path === '' ? '/' : path,
+    createdAt: now,
+  };
+
+  try {
+    insertFolderStmt.run(record);
+  } catch (error: any) {
+    if (error && typeof error.message === 'string' && error.message.includes('UNIQUE')) {
+      throw new Error('같은 경로에 동일한 폴더가 이미 있습니다.');
+    }
+    throw error;
+  }
+
+  return record;
+}
+
+export function getFolderById(id: string): FolderRecord | undefined {
+  return selectFolderByIdStmt.get(id) as FolderRecord | undefined;
+}
+
+export function listFolders(userId: string): FolderRecord[] {
+  return listFoldersByUserStmt.all(userId) as FolderRecord[];
+}
+
+export function listFoldersByParent(userId: string, parentId: string | null): FolderRecord[] {
+  return listFoldersByParentStmt.all(userId, parentId) as FolderRecord[];
+}
+
+export function assertFolderOwnership(userId: string, folderId: string): FolderRecord {
+  const folder = getFolderById(folderId);
+  if (!folder || folder.userId !== userId) {
+    throw new Error('폴더를 찾을 수 없습니다.');
+  }
+  return folder;
+}

@@ -63,6 +63,8 @@ See `.env.example` for full list. Key settings:
 - `KMS_BASE_URL` – URL where the KMS service runs.
 - `KMS_CLIENT_TOKEN` – base64url token used during RSA key exchange (must match KMS whitelist).
 - `STORAGE_DATA_DIR` – directory for the SQLite DB + encrypted blobs (default `server/.data`).
+- `STORAGE_CHUNK_SIZE` – plaintext bytes sent per KMS encrypt call (default `96000`, max `98000`). Larger chunks reduce round-trips.
+- `STORAGE_ENCRYPT_CONCURRENCY` – number of chunks encrypted in parallel on the server (default `4`).
 - `STORAGE_SESSION_TTL_DAYS` – session lifetime.
 - `REGISTRATION_SEED` – shared secret that seeds the deterministic verification-code generator.
 - `CLOUDFLARE_TUNNEL_TOKEN` – required when using the Cloudflare tunnel compose file.
