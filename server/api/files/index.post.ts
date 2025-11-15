@@ -25,13 +25,18 @@ export default defineEventHandler(async (event) => {
   const descriptionField = form.find((part) => !part.filename && part.name === 'description');
   const description = descriptionField ? descriptionField.data.toString('utf8') : undefined;
 
-  const record = await saveEncryptedFile({
-    userId: auth.user.id,
-    name: fileName,
-    mimeType,
-    buffer,
-    description,
-  });
-
-  return { data: record };
+  try {
+    const record = await saveEncryptedFile({
+      userId: auth.user.id,
+      name: fileName,
+      mimeType,
+      buffer,
+      description,
+    });
+    return { data: record };
+  } catch (error) {
+    const statusCode = typeof (error as any)?.statusCode === 'number' ? (error as any).statusCode : 500;
+    const message = error instanceof Error ? error.message : '파일을 업로드할 수 없습니다.';
+    throw createError({ statusCode, message });
+  }
 });

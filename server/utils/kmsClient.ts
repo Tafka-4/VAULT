@@ -15,6 +15,16 @@ type DecryptPayload = {
 
 type KmsResponse<T> = { data: T };
 
+class KmsRequestError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = 'KmsRequestError';
+    this.statusCode = statusCode;
+  }
+}
+
 export const KMS_MAX_CHUNK_BYTES = 98_000; // Keep under the 131072 base64 char limit
 
 class KmsClient {
@@ -74,7 +84,7 @@ class KmsClient {
       body: JSON.stringify(body),
     });
     if ('error' in res) {
-      throw new Error(res.error?.message || 'KMS error');
+      throw new KmsRequestError(res.error?.message || 'KMS error', res.error?.status || 502);
     }
     return res.data;
   }
@@ -143,7 +153,21 @@ class KmsClient {
         }
       }
       if (!res.ok) {
-        return { error: { status: res.status, message: res.statusText } };
+        let message = res.statusText;
+        try {
+          const body = await res.text();
+          if (body) {
+            const parsed = JSON.parse(body);
+            if (typeof parsed === 'string') {
+              message = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              message = parsed.message || parsed.error || message;
+            }
+          }
+        } catch (_error) {
+          // ignore body parse errors
+        }
+        return { error: { status: res.status, message } };
       }
       const json = (await res.json()) as T;
       return json;
