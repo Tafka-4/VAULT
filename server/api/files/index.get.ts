@@ -1,6 +1,6 @@
 import { defineEventHandler, getQuery } from 'h3';
 import { requireAuth } from '~/server/utils/auth';
-import { listFiles } from '~/server/services/fileService';
+import { listFiles, toPublicFileRecord } from '~/server/services/fileService';
 
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event);
@@ -12,6 +12,6 @@ export default defineEventHandler(async (event) => {
   } else if (folderParam) {
     folderId = folderParam;
   }
-  const files = listFiles(auth.user.id, { folderId });
+  const files = listFiles(auth.user.id, { folderId }).map(toPublicFileRecord);
   return { data: files };
 });

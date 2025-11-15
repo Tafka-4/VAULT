@@ -11,6 +11,7 @@ import {
 import { requireAuth } from '~/server/utils/auth';
 import { getFileById, getFileChunks } from '~/server/services/fileService';
 import { kmsClient } from '~/server/utils/kmsClient';
+import { decryptWithKey } from '~/server/utils/aes';
 
 export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event);
@@ -48,13 +49,29 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: '파일 데이터가 손상되었습니다.' });
   }
 
+  if (!file.wrappedKeyCiphertext || !file.wrappedKeyIv || !file.wrappedKeyTag) {
+    throw createError({
+      statusCode: 500,
+      message: 'Legacy 파일 형식은 더 이상 지원되지 않습니다. 파일을 다시 업로드해주세요.',
+    });
+  }
+
+  const dataKey = await kmsClient.decrypt({
+    ciphertext: file.wrappedKeyCiphertext,
+    iv: file.wrappedKeyIv,
+    tag: file.wrappedKeyTag,
+  });
+
   const stream = new PassThrough();
+  const streamKey = dataKey;
   (async () => {
     try {
-      await pipeChunks(stream, chunks, range.start, range.end);
+      await pipeChunks(stream, chunks, range.start, range.end, streamKey);
       stream.end();
     } catch (error) {
       stream.destroy(error as Error);
+    } finally {
+      streamKey?.fill(0);
     }
   })();
 
@@ -98,7 +115,13 @@ function parseRange(input: string | undefined, totalSize: number): RangeInfo {
   return { start, end, partial: start !== 0 || end !== totalSize - 1 };
 }
 
-async function pipeChunks(stream: PassThrough, chunks: ReturnType<typeof getFileChunks>, start: number, end: number) {
+async function pipeChunks(
+  stream: PassThrough,
+  chunks: ReturnType<typeof getFileChunks>,
+  start: number,
+  end: number,
+  dataKey: Buffer
+) {
   let offset = 0;
 
   for (const chunk of chunks) {
@@ -113,11 +136,7 @@ async function pipeChunks(stream: PassThrough, chunks: ReturnType<typeof getFile
       break;
     }
 
-    const plaintext = await kmsClient.decrypt({
-      ciphertext: chunk.ciphertext,
-      iv: chunk.iv,
-      tag: chunk.tag,
-    });
+    const plaintext = decryptWithKey(chunk.ciphertext, chunk.iv, chunk.tag, dataKey);
 
     const relativeStart = Math.max(0, start - chunkStart);
     const relativeEndExclusive = Math.min(chunk.size, end - chunkStart + 1);

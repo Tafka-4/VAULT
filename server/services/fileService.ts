@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { nanoid } from 'nanoid';
 import db from '../utils/db';
 import { getAppConfig } from '../utils/config';
 import { chunkBuffer } from '../utils/chunk';
 import { kmsClient } from '../utils/kmsClient';
+import { encryptWithKey } from '../utils/aes';
 
 const cfg = getAppConfig();
 
@@ -14,6 +16,9 @@ export type FileRecord = {
   size: number;
   description?: string | null;
   folderId?: string | null;
+  wrappedKeyIv?: Buffer | null;
+  wrappedKeyTag?: Buffer | null;
+  wrappedKeyCiphertext?: Buffer | null;
   totalChunks: number;
   createdAt: number;
   updatedAt: number;
@@ -30,9 +35,15 @@ export type FileChunkRecord = {
   createdAt: number;
 };
 
+const FILE_COLUMNS = `
+  id, userId, name, mimeType, size, description, folderId,
+  wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext,
+  totalChunks, createdAt, updatedAt
+`;
+
 const insertFileStmt = db.prepare(`
-  INSERT INTO files (id, userId, name, mimeType, size, description, folderId, totalChunks, createdAt, updatedAt)
-  VALUES (@id, @userId, @name, @mimeType, @size, @description, @folderId, @totalChunks, @createdAt, @updatedAt)
+  INSERT INTO files (id, userId, name, mimeType, size, description, folderId, wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, totalChunks, createdAt, updatedAt)
+  VALUES (@id, @userId, @name, @mimeType, @size, @description, @folderId, @wrappedKeyIv, @wrappedKeyTag, @wrappedKeyCiphertext, @totalChunks, @createdAt, @updatedAt)
 `);
 
 const insertChunkStmt = db.prepare(`
@@ -41,28 +52,28 @@ const insertChunkStmt = db.prepare(`
 `);
 
 const listFilesAllStmt = db.prepare(`
-  SELECT id, userId, name, mimeType, size, description, folderId, totalChunks, createdAt, updatedAt
+  SELECT ${FILE_COLUMNS}
   FROM files
   WHERE userId = ?
   ORDER BY updatedAt DESC
 `);
 
 const listFilesByFolderStmt = db.prepare(`
-  SELECT id, userId, name, mimeType, size, description, folderId, totalChunks, createdAt, updatedAt
+  SELECT ${FILE_COLUMNS}
   FROM files
   WHERE userId = ? AND folderId = ?
   ORDER BY updatedAt DESC
 `);
 
 const listFilesInRootStmt = db.prepare(`
-  SELECT id, userId, name, mimeType, size, description, folderId, totalChunks, createdAt, updatedAt
+  SELECT ${FILE_COLUMNS}
   FROM files
   WHERE userId = ? AND folderId IS NULL
   ORDER BY updatedAt DESC
 `);
 
 const getFileStmt = db.prepare(`
-  SELECT id, userId, name, mimeType, size, description, folderId, totalChunks, createdAt, updatedAt
+  SELECT ${FILE_COLUMNS}
   FROM files
   WHERE id = ? AND userId = ?
 `);
@@ -107,7 +118,10 @@ export async function saveEncryptedFile(params: {
 
   const chunks = chunkBuffer(buffer, cfg.chunkSize);
   const fileId = nanoid(21);
-  const encryptedChunks = await encryptChunksConcurrently(chunks, cfg.encryptConcurrency);
+  const dataKey = randomBytes(32);
+  const wrappedKey = await kmsClient.encrypt(dataKey);
+  const encryptedChunks = encryptChunksWithDataKey(chunks, dataKey);
+  dataKey.fill(0);
 
   const now = Date.now();
   const file: FileRecord = {
@@ -118,6 +132,9 @@ export async function saveEncryptedFile(params: {
     size: buffer.length,
     description,
     folderId,
+    wrappedKeyIv: wrappedKey.iv,
+    wrappedKeyTag: wrappedKey.tag,
+    wrappedKeyCiphertext: wrappedKey.ciphertext,
     totalChunks: encryptedChunks.length,
     createdAt: now,
     updatedAt: now,
@@ -173,30 +190,23 @@ export function moveFileToFolder(params: { fileId: string; userId: string; folde
   return res.changes > 0;
 }
 
-async function encryptChunksConcurrently(chunks: Buffer[], concurrency: number): Promise<PreparedChunk[]> {
-  const total = chunks.length;
-  if (!total) return [];
-  const workerCount = Math.max(1, Math.min(concurrency, total));
-  const results = new Array<PreparedChunk>(total);
-  let nextIndex = 0;
+export type PublicFileRecord = Omit<FileRecord, 'wrappedKeyIv' | 'wrappedKeyTag' | 'wrappedKeyCiphertext'>;
 
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const current = nextIndex++;
-      if (current >= total) break;
-      const chunk = chunks[current];
-      const encrypted = await kmsClient.encrypt(chunk);
-      results[current] = {
-        id: nanoid(21),
-        chunkIndex: current,
-        iv: encrypted.iv,
-        tag: encrypted.tag,
-        ciphertext: encrypted.ciphertext,
-        size: chunk.length,
-      };
-    }
+export function toPublicFileRecord(file: FileRecord): PublicFileRecord {
+  const { wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, ...rest } = file;
+  return rest;
+}
+
+function encryptChunksWithDataKey(chunks: Buffer[], key: Buffer): PreparedChunk[] {
+  return chunks.map((chunk, index) => {
+    const encrypted = encryptWithKey(chunk, key);
+    return {
+      id: nanoid(21),
+      chunkIndex: index,
+      iv: encrypted.iv,
+      tag: encrypted.tag,
+      ciphertext: encrypted.ciphertext,
+      size: chunk.length,
+    };
   });
-
-  await Promise.all(workers);
-  return results;
 }

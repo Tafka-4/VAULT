@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readMultipartFormData } from 'h3';
 import { requireAuth } from '~/server/utils/auth';
-import { saveEncryptedFile } from '~/server/services/fileService';
+import { saveEncryptedFile, toPublicFileRecord } from '~/server/services/fileService';
 import { assertFolderOwnership } from '~/server/services/folderService';
 
 export default defineEventHandler(async (event) => {
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
       description,
       folderId,
     });
-    return { data: record };
+    return { data: toPublicFileRecord(record) };
   } catch (error) {
     const statusCode = typeof (error as any)?.statusCode === 'number' ? (error as any).statusCode : 500;
     const fallbackMessage = '파일을 업로드할 수 없습니다.';

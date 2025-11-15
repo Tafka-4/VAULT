@@ -63,8 +63,7 @@ See `.env.example` for full list. Key settings:
 - `KMS_BASE_URL` – URL where the KMS service runs.
 - `KMS_CLIENT_TOKEN` – base64url token used during RSA key exchange (must match KMS whitelist).
 - `STORAGE_DATA_DIR` – directory for the SQLite DB + encrypted blobs (default `server/.data`).
-- `STORAGE_CHUNK_SIZE` – plaintext bytes sent per KMS encrypt call (default `10MB`, max `10MB`). Larger chunks reduce round-trips.
-- `STORAGE_ENCRYPT_CONCURRENCY` – number of chunks encrypted in parallel on the server (default `4`).
+- `STORAGE_CHUNK_SIZE` – plaintext bytes stored per encrypted chunk (default `10MB`). Chunks are encrypted locally with AES-256-GCM before being saved.
 - `STORAGE_SESSION_TTL_DAYS` – session lifetime.
 - `REGISTRATION_SEED` – shared secret that seeds the deterministic verification-code generator.
 - `CLOUDFLARE_TUNNEL_TOKEN` – required when using the Cloudflare tunnel compose file.
@@ -85,7 +84,7 @@ Share the printed value (format `Vault{...}`) with trusted teammates; they must 
 ## Implementation Notes
 
 - `server/utils/kmsClient.ts` performs the RSA handshake (`/session/init` + `/session/key-exchange`) and wraps `crypto/encrypt|decrypt` calls with automatic retries when sessions expire.
-- `server/services/fileService.ts` stores metadata plus encrypted chunks per file, ensuring each chunk stays within the KMS plaintext limit.
+- `server/services/fileService.ts` derives a per-file AES-256 key, encrypts chunks locally, and only sends the small wrapped key blob to the KMS.
 - `server/api/files/[id]/stream.get.ts` supports range requests so `<audio>`/`<video>` tags can stream media directly from encrypted storage.
 - Front-end state (auth, files, previews) lives in composables under `composables/` and `types/`.
 - Route middleware (`middleware/auth.global.ts`) forces login before accessing `/app/**`.
