@@ -120,7 +120,7 @@
         </div>
       </section>
 
-      <section id="library" class="grid gap-6 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,1.62fr)]">
+      <section id="library" class="grid gap-6 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,1.45fr)]">
         <aside class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
           <div class="flex items-center justify-between">
             <div>
@@ -167,8 +167,8 @@
                 :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
                 @click="selectFolderScope(folder.id)"
               >
-                <p class="font-medium">{{ folder.name }}</p>
-                <p class="text-xs text-paper-oklch/55">{{ folder.path }}</p>
+                <p class="font-medium truncate">{{ folder.name }}</p>
+                <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
               </button>
             </div>
             <p v-else class="text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>

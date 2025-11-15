@@ -15,6 +15,7 @@ type DecryptPayload = {
 
 type KmsResponse<T> = { data: T };
 const MAX_KMS_ATTEMPTS = 3;
+const MAX_SESSION_INIT_ATTEMPTS = 3;
 
 class KmsRequestError extends Error {
   statusCode: number;
@@ -117,7 +118,7 @@ class KmsClient {
     await this.pending;
   }
 
-  private async initSession() {
+  private async initSession(attempt = 0) {
     const init = await this.fetchJson<KmsResponse<{ sessionId: string; rsaPublicKeyPem: string }>>('/session/init', { method: 'GET' });
     if ('error' in init || !init.data) {
       throw new Error('Unable to initialize KMS session');
@@ -134,7 +135,13 @@ class KmsClient {
       body: JSON.stringify({ sessionId, wrappedKey }),
     });
     if ('error' in exchange) {
-      throw new Error('KMS key exchange failed');
+      const status = exchange.error?.status || 502;
+      const message = exchange.error?.message || 'KMS key exchange failed';
+      if (attempt + 1 < MAX_SESSION_INIT_ATTEMPTS) {
+        await this.sleep(500 * 2 ** attempt);
+        return this.initSession(attempt + 1);
+      }
+      throw new KmsRequestError(message, status);
     }
     this.sessionId = sessionId;
   }
