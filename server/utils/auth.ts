@@ -40,7 +40,7 @@ export async function getAuth(event: H3Event): Promise<AuthContext | null> {
 export async function requireAuth(event: H3Event): Promise<AuthContext> {
   const auth = await getAuth(event);
   if (!auth) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' });
+    throw createError({ statusCode: 401, message: 'Unauthorized' });
   }
   return auth;
 }

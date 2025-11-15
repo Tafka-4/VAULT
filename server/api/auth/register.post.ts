@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: parsed.error.errors.map((err) => err.message).join(', '),
+      message: parsed.error.errors.map((err) => err.message).join(', '),
     });
   }
 
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   if (existing) {
     throw createError({
       statusCode: 409,
-      statusMessage: '이미 가입된 이메일입니다.',
+      message: '이미 가입된 이메일입니다.',
     });
   }
 
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   if (!verificationCode || !isValidVerificationCode(verificationCode)) {
     throw createError({
       statusCode: 403,
-      statusMessage: '유효하지 않은 검증 코드입니다.',
+      message: '유효하지 않은 검증 코드입니다.',
     });
   }
 

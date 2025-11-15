@@ -16,12 +16,12 @@ export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event);
   const id = event.context.params?.id;
   if (!id) {
-    throw createError({ statusCode: 400, statusMessage: '파일 ID가 필요합니다.' });
+    throw createError({ statusCode: 400, message: '파일 ID가 필요합니다.' });
   }
 
   const file = getFileById(id, auth.user.id);
   if (!file) {
-    throw createError({ statusCode: 404, statusMessage: '파일을 찾을 수 없습니다.' });
+    throw createError({ statusCode: 404, message: '파일을 찾을 수 없습니다.' });
   }
 
   const totalSize = file.size;
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
   const chunks = getFileChunks(file.id);
   if (!chunks.length) {
-    throw createError({ statusCode: 500, statusMessage: '파일 데이터가 손상되었습니다.' });
+    throw createError({ statusCode: 500, message: '파일 데이터가 손상되었습니다.' });
   }
 
   const stream = new PassThrough();
@@ -75,7 +75,7 @@ function parseRange(input: string | undefined, totalSize: number): RangeInfo {
   if (Number.isNaN(start)) {
     const suffixLength = Number(endPart);
     if (Number.isNaN(suffixLength)) {
-      throw createError({ statusCode: 416, statusMessage: '잘못된 Range 헤더입니다.' });
+      throw createError({ statusCode: 416, message: '잘못된 Range 헤더입니다.' });
     }
     start = Math.max(totalSize - suffixLength, 0);
     end = totalSize - 1;
@@ -87,7 +87,7 @@ function parseRange(input: string | undefined, totalSize: number): RangeInfo {
   end = Math.min(totalSize - 1, end);
 
   if (start > end) {
-    throw createError({ statusCode: 416, statusMessage: 'Range 범위가 잘못되었습니다.' });
+    throw createError({ statusCode: 416, message: 'Range 범위가 잘못되었습니다.' });
   }
 
   return { start, end, partial: start !== 0 || end !== totalSize - 1 };

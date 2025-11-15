@@ -6,12 +6,12 @@ export default defineEventHandler(async (event) => {
   const auth = await requireAuth(event);
   const form = await readMultipartFormData(event);
   if (!form?.length) {
-    throw createError({ statusCode: 400, statusMessage: '업로드할 파일이 없습니다.' });
+    throw createError({ statusCode: 400, message: '업로드할 파일이 없습니다.' });
   }
 
   const filePart = form.find((part) => Boolean(part.filename));
   if (!filePart) {
-    throw createError({ statusCode: 400, statusMessage: '파일 필드를 찾을 수 없습니다.' });
+    throw createError({ statusCode: 400, message: '파일 필드를 찾을 수 없습니다.' });
   }
 
   const fileName = filePart.filename || '파일';
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const buffer = filePart.data;
 
   if (!buffer || !buffer.length) {
-    throw createError({ statusCode: 400, statusMessage: '빈 파일은 업로드할 수 없습니다.' });
+    throw createError({ statusCode: 400, message: '빈 파일은 업로드할 수 없습니다.' });
   }
 
   const descriptionField = form.find((part) => !part.filename && part.name === 'description');

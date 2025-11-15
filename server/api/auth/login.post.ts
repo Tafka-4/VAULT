@@ -15,14 +15,14 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: parsed.error.errors.map((err) => err.message).join(', '),
+      message: parsed.error.errors.map((err) => err.message).join(', '),
     });
   }
 
   const { email, password } = parsed.data;
   const user = getUserByEmail(email);
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
-    throw createError({ statusCode: 401, statusMessage: '이메일 혹은 암호가 올바르지 않습니다.' });
+    throw createError({ statusCode: 401, message: '이메일 혹은 암호가 올바르지 않습니다.' });
   }
 
   const publicUser = toPublicUser(user);
