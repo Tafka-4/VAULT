@@ -209,7 +209,11 @@ const processQueue = async () => {
         item.progress = 100
         item.status = 'done'
         item.message = '완료'
-        await refreshFiles()
+        try {
+          await refreshFiles()
+        } catch (refreshError) {
+          console.warn('Failed to refresh files after upload', refreshError)
+        }
       } catch (error) {
         item.status = 'error'
         item.progress = 0
@@ -265,12 +269,34 @@ const uploadSingleFile = (item: UploadItem) => {
 const extractUploadError = (xhr: XMLHttpRequest) => {
   try {
     const payload = JSON.parse(xhr.responseText)
-    if (payload?.message) return payload.message as string
-    if (typeof payload === 'string') return payload
+    if (payload) {
+      const message = normalizeMessage(payload)
+      if (message) return message
+    }
   } catch {
     // ignore parse errors
   }
   return xhr.status === 429 ? 'KMS 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' : '업로드 실패'
+}
+
+const normalizeMessage = (input: unknown): string | null => {
+  if (typeof input === 'string') return input
+  if (!input || typeof input !== 'object') return null
+  if ('message' in input) {
+    const value = (input as Record<string, unknown>).message
+    if (typeof value === 'string') return value
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value)
+    }
+  }
+  if ('error' in input) {
+    const value = (input as Record<string, unknown>).error
+    if (typeof value === 'string') return value
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value)
+    }
+  }
+  return JSON.stringify(input)
 }
 
 const formatBytes = (bytes: number) => {
