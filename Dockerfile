@@ -21,7 +21,6 @@ RUN mkdir -p /data /mnt/data /app/server/.data && chown -R vault:vault /data /mn
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
-USER vault
 
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
