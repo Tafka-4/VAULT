@@ -14,4 +14,4 @@ echo "[INFO] Starting new containers"
 mkdir -p ./bot/storage
 sudo docker compose up --build -d --remove-orphans
 
-rm /home/deploy/Nyanko/.env
+rm /home/deploy/VAULT/.env
