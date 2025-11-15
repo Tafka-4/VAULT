@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: '청크 데이터를 찾을 수 없습니다.' });
   }
   try {
-    appendUploadChunk({
+    await appendUploadChunk({
       sessionId: id,
       userId: auth.user.id,
       chunkIndex: index,

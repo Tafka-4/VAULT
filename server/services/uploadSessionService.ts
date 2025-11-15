@@ -3,9 +3,9 @@ import { join, resolve } from 'pathe';
 import { nanoid } from 'nanoid';
 import { randomBytes } from 'node:crypto';
 import { getAppConfig } from '../utils/config';
-import { encryptWithKey } from '../utils/aes';
 import { persistEncryptedChunks } from './fileService';
 import { kmsClient } from '../utils/kmsClient';
+import { encryptionPool } from '../utils/encryptionPool';
 
 const cfg = getAppConfig();
 const uploadsRoot = resolve(cfg.dataDir, 'uploads');
@@ -85,7 +85,7 @@ export function createUploadSession(params: {
   return session;
 }
 
-export function appendUploadChunk(options: {
+export async function appendUploadChunk(options: {
   sessionId: string;
   userId: string;
   chunkIndex: number;
@@ -107,9 +107,9 @@ export function appendUploadChunk(options: {
   }
   const dataKey = sessionKeys.get(options.sessionId);
   if (!dataKey) {
-    throw new Error('업로드 세션 키를 찾을 수 없습니다.');
+    throw new Error('업로드 세션 키를 찾을 수 없습니다. 다시 업로드해주세요.');
   }
-  const encrypted = encryptWithKey(options.data, dataKey);
+  const encrypted = await encryptionPool.encrypt(options.data, dataKey);
   const payload = Buffer.concat([encrypted.iv, encrypted.tag, encrypted.ciphertext]);
   fs.writeFileSync(dest, payload);
   session.receivedChunks += 1;
