@@ -66,6 +66,9 @@
                     :style="{ width: `${item.progress}%` }"
                   ></div>
                 </div>
+                <p v-if="item.speed" class="text-xs text-paper-oklch/55">
+                  전송 속도: {{ item.speed }}
+                </p>
                 <p v-if="item.message && item.status === 'error'" class="text-xs text-red-200/80">
                   {{ item.message }}
                 </p>
@@ -126,6 +129,7 @@ type UploadItem = {
   status: 'pending' | 'uploading' | 'done' | 'error'
   message?: string
   file: File
+  speed?: string
 }
 
 type FilesResponse = { data: StoredFile[] }
@@ -134,7 +138,6 @@ const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
 const dragActive = ref(false)
 let dragDepth = 0
-const requestFetch = useRequestFetch()
 
 const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-upload'
@@ -194,21 +197,15 @@ const handleDrop = (event: DragEvent) => {
 }
 
 const processQueue = async () => {
+  if (!process.client) return
   if (uploading.value) return
   uploading.value = true
   try {
     for (const item of uploads.value) {
       if (item.status !== 'pending') continue
       item.status = 'uploading'
-      item.progress = 30
-      const formData = new FormData()
-      formData.append('file', item.file)
       try {
-        await requestFetch('/api/files', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        })
+        await uploadSingleFile(item)
         item.progress = 100
         item.status = 'done'
         item.message = '완료'
@@ -222,6 +219,58 @@ const processQueue = async () => {
   } finally {
     uploading.value = false
   }
+}
+
+const uploadSingleFile = (item: UploadItem) => {
+  if (!process.client) {
+    return Promise.reject(new Error('클라이언트에서만 업로드할 수 있습니다.'))
+  }
+  return new Promise<void>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('file', item.file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', '/api/files')
+    xhr.withCredentials = true
+    const startedAt = performance.now()
+
+    xhr.upload.onprogress = event => {
+      if (!event.lengthComputable) return
+      const percent = Math.min(99, Math.round((event.loaded / event.total) * 100))
+      item.progress = percent
+      const elapsed = Math.max(performance.now() - startedAt, 1)
+      const bytesPerSecond = event.loaded / (elapsed / 1000)
+      item.speed = formatRate(bytesPerSecond)
+    }
+
+    xhr.onload = () => {
+      const elapsed = Math.max(performance.now() - startedAt, 1)
+      const bytesPerSecond = item.size / (elapsed / 1000)
+      item.speed = formatRate(bytesPerSecond)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve()
+        return
+      }
+      reject(new Error(extractUploadError(xhr)))
+    }
+
+    xhr.onerror = () => {
+      reject(new Error('네트워크 오류로 업로드에 실패했습니다.'))
+    }
+
+    xhr.send(formData)
+  })
+}
+
+const extractUploadError = (xhr: XMLHttpRequest) => {
+  try {
+    const payload = JSON.parse(xhr.responseText)
+    if (payload?.message) return payload.message as string
+    if (typeof payload === 'string') return payload
+  } catch {
+    // ignore parse errors
+  }
+  return xhr.status === 429 ? 'KMS 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' : '업로드 실패'
 }
 
 const formatBytes = (bytes: number) => {
@@ -244,5 +293,17 @@ const statusLabel = (item: UploadItem) => {
     default:
       return '실패'
   }
+}
+
+const formatRate = (bytesPerSecond: number) => {
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let value = bytesPerSecond
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex++
+  }
+  const digits = unitIndex === 0 ? 0 : 1
+  return `${value.toFixed(digits)} ${units[unitIndex]}`
 }
 </script>

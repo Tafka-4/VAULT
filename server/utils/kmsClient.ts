@@ -14,6 +14,7 @@ type DecryptPayload = {
 };
 
 type KmsResponse<T> = { data: T };
+const MAX_KMS_ATTEMPTS = 3;
 
 class KmsRequestError extends Error {
   statusCode: number;
@@ -73,20 +74,35 @@ class KmsClient {
     return Buffer.from(result.plaintext, 'base64');
   }
 
-  private async callCrypto<T>(endpoint: 'encrypt' | 'decrypt', body: Record<string, any>, retry = true): Promise<T> {
+  private async callCrypto<T>(endpoint: 'encrypt' | 'decrypt', body: Record<string, any>, attempt = 0): Promise<T> {
     await this.ensureSession();
-    const res = await this.fetchJson<KmsResponse<T>>(`/crypto/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Client-Token': this.token,
-      },
-      body: JSON.stringify(body),
-    });
-    if ('error' in res) {
-      throw new KmsRequestError(res.error?.message || 'KMS error', res.error?.status || 502);
+    try {
+      const res = await this.fetchJson<KmsResponse<T>>(`/crypto/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Token': this.token,
+        },
+        body: JSON.stringify(body),
+      });
+      if ('error' in res) {
+        throw new KmsRequestError(res.error?.message || 'KMS error', res.error?.status || 502);
+      }
+      return res.data;
+    } catch (error) {
+      if (error instanceof KmsRequestError && attempt < MAX_KMS_ATTEMPTS) {
+        if (error.statusCode === 429) {
+          await this.sleep(500 * 2 ** attempt);
+          return this.callCrypto(endpoint, body, attempt + 1);
+        }
+        if (error.statusCode === 401 || error.statusCode === 403) {
+          this.sessionId = undefined;
+          await this.ensureSession();
+          return this.callCrypto(endpoint, body, attempt + 1);
+        }
+      }
+      throw error;
     }
-    return res.data;
   }
 
   private async ensureSession() {
@@ -177,6 +193,10 @@ class KmsClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
