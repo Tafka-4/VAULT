@@ -133,7 +133,7 @@
               type="button"
               class="tap-area inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-black hover:bg-white disabled:opacity-50"
               :disabled="creatingFolder"
-              @click="createFolder"
+              @click="openCreateFolderModal"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
@@ -147,6 +147,8 @@
               class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
               :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
               @click="selectFolderScope('all')"
+              @dragover.prevent
+              @drop.prevent="handleFileDrop(null)"
             >
               전체 파일
             </button>
@@ -155,21 +157,39 @@
               class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
               :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
               @click="selectFolderScope('root')"
+              @dragover.prevent
+              @drop.prevent="handleFileDrop(null)"
             >
               루트 폴더
             </button>
             <div v-if="folders.length" class="space-y-1">
-              <button
+              <div
                 v-for="folder in folders"
                 :key="folder.id"
-                type="button"
-                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-                :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
-                @click="selectFolderScope(folder.id)"
+                class="flex items-center gap-2"
               >
-                <p class="font-medium truncate">{{ folder.name }}</p>
-                <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
-              </button>
+                <button
+                  type="button"
+                  class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                  :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
+                  @click="selectFolderScope(folder.id)"
+                  @dragover.prevent
+                  @drop.prevent="handleFileDrop(folder.id)"
+                >
+                  <p class="font-medium truncate">{{ folder.name }}</p>
+                  <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
+                </button>
+                <button
+                  type="button"
+                  class="tap-area rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
+                  :disabled="Boolean(deleteFolderState[folder.id])"
+                  @click.stop="deleteFolder(folder.id)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <p v-else class="text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
           </div>
@@ -199,6 +219,9 @@
                 :to="`/app/file-preview/${file.id}`"
                 show-delete
                 :deleting="Boolean(deleteState[file.id])"
+                draggable
+                @dragstart="handleFileDragStart(file.id)"
+                @dragend="handleFileDragEnd"
                 @delete="deleteFile(file.id)"
               />
             </template>
@@ -208,6 +231,62 @@
       </section>
     </section>
   </main>
+
+  <transition name="fade">
+    <div
+      v-if="showCreateFolderModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur"
+    >
+      <div class="w-full max-w-md rounded-3xl bg-[#0f0f11] p-6 text-paper-oklch ring-1 ring-white/10">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 폴더</p>
+            <h3 class="text-lg font-semibold">폴더 만들기</h3>
+          </div>
+          <button type="button" class="tap-area rounded-full p-2 hover:bg-white/10" @click="closeCreateFolderModal">
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <form class="mt-6 space-y-4" @submit.prevent="submitCreateFolder">
+          <div class="space-y-2">
+            <label class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">폴더 이름</label>
+            <input
+              v-model="newFolderName"
+              type="text"
+              class="w-full rounded-2xl border border-white/20 bg-black/30 px-4 py-3 text-sm text-paper-oklch focus:outline-none focus:ring-2 focus:ring-white/40"
+              placeholder="예: 프로젝트 자료"
+              required
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">상위 폴더</label>
+            <p class="rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-paper-oklch/70">
+              {{ selectedFolder?.path || '루트' }}
+            </p>
+          </div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              class="tap-area rounded-full px-4 py-2 text-sm text-paper-oklch/70 hover:bg-white/10"
+              :disabled="creatingFolder"
+              @click="closeCreateFolderModal"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              class="tap-area rounded-full bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-white/90 disabled:opacity-50"
+              :disabled="creatingFolder"
+            >
+              {{ creatingFolder ? '생성 중...' : '생성' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
@@ -263,6 +342,8 @@ const selectedFolder = computed(() => {
 })
 
 const deleteState = ref<Record<string, boolean>>({})
+const deleteFolderState = ref<Record<string, boolean>>({})
+const draggingFileId = ref<string | null>(null)
 
 const setDeleteState = (id: string, value: boolean) => {
   if (value) {
@@ -287,18 +368,83 @@ const deleteFile = async (fileId: string) => {
   }
 }
 
+const moveFile = async (fileId: string, folderId: string | null) => {
+  try {
+    await requestFetch(`/api/files/${fileId}/move`, {
+      method: 'POST',
+      body: { folderId }
+    })
+    await refresh()
+  } catch (error) {
+    alert(getErrorMessage(error) || '파일을 이동할 수 없습니다.')
+  }
+}
+
+const deleteFolder = async (folderId: string) => {
+  if (!confirm('폴더를 삭제하시겠습니까? 폴더의 파일은 루트로 이동합니다.')) return
+  if (deleteFolderState.value[folderId]) return
+  deleteFolderState.value = { ...deleteFolderState.value, [folderId]: true }
+  try {
+    await requestFetch(`/api/folders/${folderId}`, { method: 'DELETE' })
+    if (folderScope.value === folderId) {
+      folderScope.value = 'all'
+    }
+    await Promise.all([refreshFolders(), refresh()])
+  } catch (error) {
+    alert(getErrorMessage(error) || '폴더 삭제에 실패했습니다.')
+  } finally {
+    const { [folderId]: _removed, ...rest } = deleteFolderState.value
+    deleteFolderState.value = rest
+  }
+}
+
+const handleFileDragStart = (fileId: string) => {
+  draggingFileId.value = fileId
+}
+
+const handleFileDragEnd = () => {
+  draggingFileId.value = null
+}
+
+const handleFileDrop = async (folderId: string | null) => {
+  if (!draggingFileId.value) return
+  await moveFile(draggingFileId.value, folderId)
+  draggingFileId.value = null
+}
+
+const showCreateFolderModal = ref(false)
+const newFolderName = ref('')
 const creatingFolder = ref(false)
-const createFolder = async () => {
-  const name = window.prompt('새 폴더 이름을 입력하세요.')
-  if (!name) return
+
+const currentParentId = computed(() => {
+  if (folderScope.value === 'all') return null
+  if (folderScope.value === 'root') return null
+  return folderScope.value
+})
+
+const openCreateFolderModal = () => {
+  newFolderName.value = ''
+  showCreateFolderModal.value = true
+}
+
+const closeCreateFolderModal = () => {
+  if (creatingFolder.value) return
+  showCreateFolderModal.value = false
+}
+
+const submitCreateFolder = async () => {
+  if (!newFolderName.value.trim()) {
+    alert('폴더 이름을 입력하세요.')
+    return
+  }
   creatingFolder.value = true
   try {
-    const parentId = folderScope.value === 'all' ? null : folderScope.value === 'root' ? null : folderScope.value
     await requestFetch('/api/folders', {
       method: 'POST',
-      body: { name, parentId }
+      body: { name: newFolderName.value, parentId: currentParentId.value }
     })
-    await refreshFolders()
+    await Promise.all([refreshFolders(), refresh()])
+    closeCreateFolderModal()
   } catch (error) {
     alert(getErrorMessage(error) || '폴더를 생성할 수 없습니다.')
   } finally {

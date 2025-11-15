@@ -69,6 +69,13 @@ const getFileStmt = db.prepare(`
 
 const deleteFileStmt = db.prepare(`DELETE FROM files WHERE id = ? AND userId = ?`);
 
+const updateFolderStmt = db.prepare(`
+  UPDATE files
+  SET folderId = @folderId,
+      updatedAt = @updatedAt
+  WHERE id = @id AND userId = @userId
+`);
+
 const getChunksStmt = db.prepare(`
   SELECT id, fileId, chunkIndex, iv, tag, ciphertext, size, createdAt
   FROM file_chunks
@@ -157,6 +164,13 @@ export function deleteFile(fileId: string, userId: string): boolean {
 
 export function getFileChunks(fileId: string): FileChunkRecord[] {
   return getChunksStmt.all(fileId) as FileChunkRecord[];
+}
+
+export function moveFileToFolder(params: { fileId: string; userId: string; folderId: string | null }): boolean {
+  const { fileId, userId, folderId } = params;
+  const now = Date.now();
+  const res = updateFolderStmt.run({ id: fileId, userId, folderId, updatedAt: now });
+  return res.changes > 0;
 }
 
 async function encryptChunksConcurrently(chunks: Buffer[], concurrency: number): Promise<PreparedChunk[]> {

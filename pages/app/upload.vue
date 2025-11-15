@@ -84,6 +84,18 @@
                 <p v-if="item.message && item.status === 'error'" class="text-xs text-red-200/80">
                   {{ item.message }}
                 </p>
+                <div
+                  v-if="item.status === 'pending' || item.status === 'uploading'"
+                  class="flex justify-end"
+                >
+                  <button
+                    type="button"
+                    class="tap-area rounded-full px-3 py-1 text-xs text-paper-oklch/70 hover:bg-white/10"
+                    @click="cancelUpload(item.id)"
+                  >
+                    취소
+                  </button>
+                </div>
               </div>
             </div>
             <div v-else class="rounded-2xl bg-black/30 px-4 py-5 text-sm text-paper-oklch/55 ring-1 ring-surface">
@@ -170,6 +182,7 @@ const selectedFolderOption = computed({
     targetFolderId.value = value === 'root' ? null : value
   }
 })
+const activeRequests = new Map<string, XMLHttpRequest>()
 
 const queueFiles = (fileList: FileList | File[]) => {
   const files = Array.from(fileList)
@@ -223,6 +236,23 @@ const handleDrop = (event: DragEvent) => {
   }
 }
 
+const cancelUpload = (itemId: string) => {
+  const item = uploads.value.find(upload => upload.id === itemId)
+  if (!item) return
+  if (item.status === 'uploading') {
+    const req = activeRequests.get(item.id)
+    if (req) {
+      req.abort()
+      activeRequests.delete(item.id)
+    }
+    item.status = 'error'
+    item.progress = 0
+    item.message = '취소됨'
+  } else if (item.status === 'pending') {
+    uploads.value = uploads.value.filter(upload => upload.id !== itemId)
+  }
+}
+
 const processQueue = async () => {
   if (!process.client) return
   if (uploading.value) return
@@ -267,6 +297,7 @@ const uploadSingleFile = (item: UploadItem) => {
     xhr.open('POST', '/api/files')
     xhr.withCredentials = true
     const startedAt = performance.now()
+    activeRequests.set(item.id, xhr)
 
     xhr.upload.onprogress = event => {
       if (!event.lengthComputable) return
@@ -282,14 +313,22 @@ const uploadSingleFile = (item: UploadItem) => {
       const bytesPerSecond = item.size / (elapsed / 1000)
       item.speed = formatRate(bytesPerSecond)
       if (xhr.status >= 200 && xhr.status < 300) {
+        activeRequests.delete(item.id)
         resolve()
         return
       }
+      activeRequests.delete(item.id)
       reject(new Error(extractUploadError(xhr)))
     }
 
     xhr.onerror = () => {
+      activeRequests.delete(item.id)
       reject(new Error('네트워크 오류로 업로드에 실패했습니다.'))
+    }
+
+    xhr.onabort = () => {
+      activeRequests.delete(item.id)
+      reject(new Error('사용자가 업로드를 취소했습니다.'))
     }
 
     xhr.send(formData)

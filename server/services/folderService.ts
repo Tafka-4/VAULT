@@ -35,6 +35,8 @@ const listFoldersByParentStmt = db.prepare(`
   ORDER BY name COLLATE NOCASE ASC
 `);
 
+const deleteFolderStmt = db.prepare('DELETE FROM folders WHERE id = ? AND userId = ?');
+
 export function createFolder(userId: string, name: string, parentId: string | null = null): FolderRecord {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -95,4 +97,13 @@ export function assertFolderOwnership(userId: string, folderId: string): FolderR
     throw new Error('폴더를 찾을 수 없습니다.');
   }
   return folder;
+}
+
+export function deleteFolder(userId: string, folderId: string): boolean {
+  const folder = assertFolderOwnership(userId, folderId);
+  if (!folder) {
+    throw new Error('폴더를 찾을 수 없습니다.');
+  }
+  const res = deleteFolderStmt.run(folderId, userId);
+  return res.changes > 0;
 }

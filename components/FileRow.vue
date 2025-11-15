@@ -3,9 +3,12 @@
     :class="rowClasses"
     :role="to ? 'link' : undefined"
     :tabindex="to ? 0 : undefined"
+    :draggable="draggable ? true : false"
     @click="navigate"
     @keydown.enter.prevent="navigate"
     @keydown.space.prevent="navigate"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
   >
     <div class="flex items-center gap-3">
       <div class="size-9 grid place-items-center rounded-xl bg-white/10 ring-1 ring-surface">
@@ -34,8 +37,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, type PropType } from 'vue'
 
-const props = defineProps<{ icon: IconName; name: string; detail: string; to?: string; showDelete?: boolean; deleting?: boolean }>()
-const emit = defineEmits<{ (e: 'delete'): void }>()
+const props = defineProps<{ icon: IconName; name: string; detail: string; to?: string; showDelete?: boolean; deleting?: boolean; draggable?: boolean }>()
+const emit = defineEmits<{ (e: 'delete'): void; (e: 'dragstart'): void; (e: 'dragend'): void }>()
 
 const rowClasses = computed(() => [
   'flex items-center justify-between border-b border-white/5 py-3 last:border-none transition-colors',
@@ -47,6 +50,17 @@ const rowClasses = computed(() => [
 const navigate = () => {
   if (!props.to) return
   navigateTo(props.to)
+}
+
+const handleDragStart = (event: DragEvent) => {
+  if (!props.draggable) return
+  emit('dragstart')
+  event.dataTransfer?.setData('text/plain', props.to || props.name)
+}
+
+const handleDragEnd = () => {
+  if (!props.draggable) return
+  emit('dragend')
 }
 
 type IconName = 'file' | 'image' | 'folder' | 'lock'
