@@ -86,8 +86,13 @@ function parseRange(input: string | undefined, totalSize: number): RangeInfo {
   start = Math.max(0, start);
   end = Math.min(totalSize - 1, end);
 
+  if (start >= totalSize) {
+    const fallbackStart = totalSize > 0 ? totalSize - 1 : 0;
+    return { start: fallbackStart, end: fallbackStart, partial: true };
+  }
+
   if (start > end) {
-    throw createError({ statusCode: 416, message: 'Range 범위가 잘못되었습니다.' });
+    return { start: 0, end: Math.max(totalSize - 1, 0), partial: false };
   }
 
   return { start, end, partial: start !== 0 || end !== totalSize - 1 };

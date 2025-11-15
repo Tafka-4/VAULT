@@ -155,10 +155,17 @@ type UploadItem = {
   file: File
   speed?: string
   folderId?: string | null
+  uploadType?: 'single' | 'chunked'
+  sessionId?: string
+  shouldCancel?: boolean
 }
 
 type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
+
+const requestFetch = useRequestFetch()
+const CHUNK_UPLOAD_THRESHOLD_BYTES = 80 * 1024 * 1024
+const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
@@ -194,7 +201,9 @@ const queueFiles = (fileList: FileList | File[]) => {
     progress: 0,
     status: 'pending',
     file,
-    folderId: targetFolderId.value
+    folderId: targetFolderId.value,
+    uploadType: file.size > CHUNK_UPLOAD_THRESHOLD_BYTES ? 'chunked' : 'single',
+    shouldCancel: false
   }))
 
   uploads.value = [...uploads.value, ...newItems]
@@ -236,9 +245,10 @@ const handleDrop = (event: DragEvent) => {
   }
 }
 
-const cancelUpload = (itemId: string) => {
+const cancelUpload = async (itemId: string) => {
   const item = uploads.value.find(upload => upload.id === itemId)
   if (!item) return
+  item.shouldCancel = true
   if (item.status === 'uploading') {
     const req = activeRequests.get(item.id)
     if (req) {
@@ -248,6 +258,9 @@ const cancelUpload = (itemId: string) => {
     item.status = 'error'
     item.progress = 0
     item.message = '취소됨'
+    if (item.uploadType === 'chunked' && item.sessionId) {
+      requestFetch(`/api/uploads/${item.sessionId}`, { method: 'DELETE' }).catch(() => {})
+    }
   } else if (item.status === 'pending') {
     uploads.value = uploads.value.filter(upload => upload.id !== itemId)
   }
@@ -262,7 +275,11 @@ const processQueue = async () => {
       if (item.status !== 'pending') continue
       item.status = 'uploading'
       try {
-        await uploadSingleFile(item)
+        if (item.uploadType === 'chunked') {
+          await uploadLargeFile(item)
+        } else {
+          await uploadSingleFile(item)
+        }
         item.progress = 100
         item.status = 'done'
         item.message = '완료'
@@ -274,7 +291,8 @@ const processQueue = async () => {
       } catch (error) {
         item.status = 'error'
         item.progress = 0
-        item.message = getErrorMessage(error) || '업로드 실패'
+        const message = getErrorMessage(error)
+        item.message = item.shouldCancel ? '취소됨' : (message || '업로드 실패')
       }
     }
   } finally {
@@ -332,6 +350,83 @@ const uploadSingleFile = (item: UploadItem) => {
     }
 
     xhr.send(formData)
+  })
+}
+
+const uploadLargeFile = async (item: UploadItem) => {
+  const totalChunks = Math.ceil(item.size / CHUNK_SIZE_BYTES)
+  const init = await requestFetch<{ data?: { uploadId: string } }>('/api/uploads/init', {
+    method: 'POST',
+    body: {
+      name: item.name,
+      mimeType: item.file.type || 'application/octet-stream',
+      size: item.size,
+      totalChunks,
+      folderId: item.folderId ?? null
+    }
+  })
+  const uploadId = init?.data?.uploadId
+  if (!uploadId) {
+    throw new Error('업로드 세션을 생성할 수 없습니다.')
+  }
+  item.sessionId = uploadId
+  const startedAt = performance.now()
+  for (let index = 0; index < totalChunks; index++) {
+    if (item.shouldCancel) {
+      throw new Error('사용자가 업로드를 취소했습니다.')
+    }
+    const start = index * CHUNK_SIZE_BYTES
+    const end = Math.min(start + CHUNK_SIZE_BYTES, item.size)
+    const blob = item.file.slice(start, end)
+    await sendChunk(uploadId, index, totalChunks, blob, item, startedAt)
+  }
+  if (item.shouldCancel) {
+    throw new Error('사용자가 업로드를 취소했습니다.')
+  }
+  await requestFetch(`/api/uploads/${uploadId}/complete`, { method: 'POST' })
+  item.sessionId = undefined
+}
+
+const sendChunk = (uploadId: string, index: number, totalChunks: number, blob: Blob, item: UploadItem, startedAt: number) => {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api/uploads/${uploadId}/chunk?index=${index}`)
+    xhr.withCredentials = true
+    activeRequests.set(item.id, xhr)
+
+    xhr.upload.onprogress = event => {
+      if (!event.lengthComputable) return
+      const uploaded = (index * CHUNK_SIZE_BYTES) + event.loaded
+      const percent = Math.min(99, Math.round((uploaded / item.size) * 100))
+      item.progress = percent
+      const elapsed = Math.max(performance.now() - startedAt, 1)
+      const bytesPerSecond = uploaded / (elapsed / 1000)
+      item.speed = formatRate(bytesPerSecond)
+    }
+
+    xhr.onload = () => {
+      activeRequests.delete(item.id)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (index === totalChunks - 1) {
+          item.progress = 99
+        }
+        resolve()
+        return
+      }
+      reject(new Error(extractUploadError(xhr)))
+    }
+
+    xhr.onerror = () => {
+      activeRequests.delete(item.id)
+      reject(new Error('네트워크 오류로 업로드에 실패했습니다.'))
+    }
+
+    xhr.onabort = () => {
+      activeRequests.delete(item.id)
+      reject(new Error('사용자가 업로드를 취소했습니다.'))
+    }
+
+    xhr.send(blob)
   })
 }
 
