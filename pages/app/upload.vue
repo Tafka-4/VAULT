@@ -282,21 +282,34 @@ const extractUploadError = (xhr: XMLHttpRequest) => {
 const normalizeMessage = (input: unknown): string | null => {
   if (typeof input === 'string') return input
   if (!input || typeof input !== 'object') return null
-  if ('message' in input) {
-    const value = (input as Record<string, unknown>).message
-    if (typeof value === 'string') return value
-    if (value && typeof value === 'object') {
-      return JSON.stringify(value)
-    }
+  const candidate = extractStringField(input, ['message', 'statusMessage'])
+  if (candidate) return candidate
+
+  if ('data' in input && input.data && typeof input.data === 'object') {
+    const nested = extractStringField(input.data as Record<string, unknown>, ['message', 'error'])
+    if (nested) return nested
   }
+
   if ('error' in input) {
     const value = (input as Record<string, unknown>).error
     if (typeof value === 'string') return value
+  }
+
+  return JSON.stringify(input)
+}
+
+const extractStringField = (source: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    if (!(key in source)) continue
+    const value = source[key]
+    if (typeof value === 'string') {
+      return value
+    }
     if (value && typeof value === 'object') {
       return JSON.stringify(value)
     }
   }
-  return JSON.stringify(input)
+  return null
 }
 
 const formatBytes = (bytes: number) => {

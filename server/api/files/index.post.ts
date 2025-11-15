@@ -36,7 +36,13 @@ export default defineEventHandler(async (event) => {
     return { data: record };
   } catch (error) {
     const statusCode = typeof (error as any)?.statusCode === 'number' ? (error as any).statusCode : 500;
-    const message = error instanceof Error ? error.message : '파일을 업로드할 수 없습니다.';
-    throw createError({ statusCode, message });
+    const fallbackMessage = '파일을 업로드할 수 없습니다.';
+    const message = error instanceof Error ? (error.message || fallbackMessage) : fallbackMessage;
+    throw createError({
+      statusCode,
+      statusMessage: message,
+      message,
+      data: { message },
+    });
   }
 });
