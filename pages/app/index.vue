@@ -163,33 +163,35 @@
               루트 폴더
             </button>
             <div v-if="folders.length" class="space-y-1">
-              <div
+              <button
                 v-for="folder in folders"
                 :key="folder.id"
-                class="flex items-center gap-2"
+                type="button"
+                class="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
+                @click="selectFolderScope(folder.id)"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(folder.id)"
               >
-                <button
-                  type="button"
-                  class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-                  :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
-                  @click="selectFolderScope(folder.id)"
-                  @dragover.prevent
-                  @drop.prevent="handleFileDrop(folder.id)"
-                >
+                <div class="min-w-0 flex-1">
                   <p class="font-medium truncate">{{ folder.name }}</p>
                   <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
-                </button>
-                <button
-                  type="button"
-                  class="tap-area rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
-                  :disabled="Boolean(deleteFolderState[folder.id])"
+                </div>
+                <span
+                  class="tap-area shrink-0 rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10"
+                  :class="[
+                    folderScope === folder.id ? 'hover:bg-black/5' : '',
+                    deleteFolderState[folder.id] ? 'pointer-events-none opacity-40' : ''
+                  ]"
+                  role="button"
+                  :aria-disabled="Boolean(deleteFolderState[folder.id])"
                   @click.stop="deleteFolder(folder.id)"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
                   </svg>
-                </button>
-              </div>
+                </span>
+              </button>
             </div>
             <p v-else class="text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
           </div>
@@ -198,7 +200,7 @@
           <div class="flex items-center justify-between">
             <div>
               <h2 class="text-lg font-semibold">파일</h2>
-              <p class="text-xs text-paper-oklch/55">{{ filteredFiles.length }}개 표시</p>
+              <p class="text-xs text-paper-oklch/55">{{ totalEntriesCount }}개 표시</p>
             </div>
             <button
               type="button"
@@ -209,23 +211,56 @@
             </button>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">
-            <template v-if="filteredFiles.length">
-              <FileRow
-                v-for="file in filteredFiles"
-                :key="file.id"
-                :icon="iconForFile(file)"
-                :name="file.name"
-                :detail="detailForFile(file)"
-                :to="`/app/file-preview/${file.id}`"
-                show-delete
-                :deleting="Boolean(deleteState[file.id])"
-                draggable
-                @dragstart="handleFileDragStart(file.id)"
-                @dragend="handleFileDragEnd"
-                @delete="deleteFile(file.id)"
-              />
+            <template v-if="totalEntriesCount">
+              <div v-if="filteredFolders.length" class="mb-2 space-y-1 rounded-[1rem] bg-black/20 p-2">
+                <p class="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">폴더</p>
+                <button
+                  v-for="folder in filteredFolders"
+                  :key="`folder-${folder.id}`"
+                  type="button"
+                  class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm text-paper-oklch/80 transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                  :class="folderScope === folder.id ? 'bg-white/10 text-white' : ''"
+                  @click="selectFolderScope(folder.id)"
+                  @dragover.prevent
+                  @drop.prevent="handleFileDrop(folder.id)"
+                >
+                  <div class="flex items-center gap-3">
+                    <div class="grid size-9 place-items-center rounded-xl bg-white/10 text-white ring-1 ring-surface">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+                      </svg>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="truncate font-medium">{{ folder.name }}</p>
+                      <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 text-xs text-paper-oklch/60">
+                    <span>열기</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+              <template v-if="filteredFiles.length">
+                <FileRow
+                  v-for="file in filteredFiles"
+                  :key="file.id"
+                  :icon="iconForFile(file)"
+                  :name="file.name"
+                  :detail="detailForFile(file)"
+                  :to="`/app/file-preview/${file.id}`"
+                  show-delete
+                  :deleting="Boolean(deleteState[file.id])"
+                  draggable
+                  @dragstart="handleFileDragStart(file.id)"
+                  @dragend="handleFileDragEnd"
+                  @delete="deleteFile(file.id)"
+                />
+              </template>
             </template>
-            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이 없습니다.</p>
+            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이나 폴더가 없습니다.</p>
           </div>
         </div>
       </section>
@@ -322,12 +357,25 @@ const scopedFiles = computed(() => {
   return files.value.filter(file => file.folderId === folderScope.value)
 })
 
+const scopedFolders = computed(() => {
+  const targetParent = folderScope.value === 'root' || folderScope.value === 'all' ? null : folderScope.value
+  return folders.value.filter(folder => folder.parentId === targetParent)
+})
+
 const filteredFiles = computed(() => {
   const query = search.value.trim().toLowerCase()
   const scopeList = scopedFiles.value
   if (!query) return scopeList
   return scopeList.filter(file => file.name.toLowerCase().includes(query))
 })
+
+const filteredFolders = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query) return scopedFolders.value
+  return scopedFolders.value.filter(folder => folder.name.toLowerCase().includes(query) || folder.path.toLowerCase().includes(query))
+})
+
+const totalEntriesCount = computed(() => filteredFolders.value.length + filteredFiles.value.length)
 
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 

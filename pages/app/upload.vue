@@ -164,7 +164,7 @@ type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
 
 const requestFetch = useRequestFetch()
-const CHUNK_UPLOAD_THRESHOLD_BYTES = 80 * 1024 * 1024
+const CHUNK_UPLOAD_THRESHOLD_BYTES = 50 * 1024 * 1024
 const CHUNK_SIZE_BYTES = 8 * 1024 * 1024
 
 const uploads = ref<UploadItem[]>([])
