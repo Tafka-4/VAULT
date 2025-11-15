@@ -166,7 +166,7 @@ type FoldersResponse = { data: StoredFolder[] }
 const requestFetch = useRequestFetch()
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 const CHUNK_UPLOAD_THRESHOLD_BYTES = CHUNK_SIZE_BYTES
-const CHUNK_UPLOAD_CONCURRENCY = 4
+const CHUNK_UPLOAD_CONCURRENCY = 24
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
