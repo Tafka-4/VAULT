@@ -157,7 +157,7 @@
                 <input
                   v-model="search"
                   type="search"
-                  placeholder="파일 검색..."
+                  placeholder="파일 또는 폴더 검색..."
                   class="w-full bg-transparent text-sm text-paper-oklch placeholder:text-paper-oklch/45 focus:outline-none"
                 />
               </div>
@@ -169,8 +169,33 @@
                 새로고침
               </button>
             </div>
+            <p v-if="currentPathLabel" class="mt-2 text-xs text-paper-oklch/60">
+              경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span>
+            </p>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">
+            <div v-if="filteredFolders.length" class="mb-2 space-y-1 rounded-[1rem] bg-black/20 p-2">
+              <p class="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">폴더</p>
+              <div
+                v-for="folder in filteredFolders"
+                :key="folder.id"
+                class="rounded-xl"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(folder.id)"
+              >
+                <FileRow
+                  icon="folder"
+                  :name="folder.name"
+                  :detail="folder.path"
+                  actionable
+                  :active="folderScope === folder.id"
+                  show-delete
+                  :deleting="Boolean(deleteFolderState[folder.id])"
+                  @action="selectFolderScope(folder.id)"
+                  @delete="deleteFolder(folder.id)"
+                />
+              </div>
+            </div>
             <template v-if="filteredFiles.length">
               <FileRow
                 v-for="file in filteredFiles"
@@ -307,7 +332,17 @@ const filteredFiles = computed(() => {
   return scopeList.filter(file => file.name.toLowerCase().includes(query))
 })
 
-const totalEntriesCount = computed(() => filteredFiles.value.length)
+const filteredFolders = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query) return scopedFolders.value
+  return scopedFolders.value.filter(folder => {
+    const name = folder.name.toLowerCase()
+    const path = folder.path.toLowerCase()
+    return name.includes(query) || path.includes(query)
+  })
+})
+
+const totalEntriesCount = computed(() => filteredFolders.value.length + filteredFiles.value.length)
 
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 
@@ -402,9 +437,9 @@ const newFolderName = ref('')
 const creatingFolder = ref(false)
 
 const currentParentId = computed(() => {
-  if (folderScope.value === 'all') return null
-  if (folderScope.value === 'root') return null
-  return folderScope.value
+  if (folderScope.value === 'all' || folderScope.value === 'root') return null
+  const exists = folders.value.some(folder => folder.id === folderScope.value)
+  return exists ? folderScope.value : null
 })
 
 const openCreateFolderModal = () => {
