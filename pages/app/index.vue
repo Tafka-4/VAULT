@@ -9,22 +9,56 @@
             <h1 class="text-2xl font-extrabold">내 스토리지</h1>
             <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
+          <p class="text-xs text-paper-oklch/60">총 용량 {{ formatBytes(storageTotalBytes) }}</p>
         </div>
-        <div class="mt-6 grid gap-4 sm:grid-cols-3">
-          <div class="rounded-2xl border border-emerald-300/30 bg-emerald-500/5 px-4 py-4 text-sm text-emerald-100">
-            <p class="text-[11px] uppercase tracking-[0.3em] text-emerald-200/80">남은 공간</p>
-            <p class="mt-2 text-2xl font-bold">{{ formatBytes(remainingBytes) }}</p>
-            <p class="text-xs text-emerald-100/70">/mnt/data free</p>
-          </div>
-          <div class="rounded-2xl border border-amber-300/30 bg-amber-500/5 px-4 py-4 text-sm text-amber-100">
-            <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/80">사용 중</p>
-            <p class="mt-2 text-2xl font-bold">{{ formatBytes(usedCapacityBytes) }}</p>
-            <p class="text-xs text-amber-100/70">총 용량 {{ formatBytes(storageTotalBytes) }}</p>
-          </div>
-          <div class="rounded-2xl border border-sky-300/30 bg-sky-500/5 px-4 py-4 text-sm text-sky-100">
-            <p class="text-[11px] uppercase tracking-[0.3em] text-sky-200/80">내 사용량 (/mnt/data)</p>
-            <p class="mt-2 text-2xl font-bold">{{ formatBytes(personalUsageBytes) }}</p>
-            <p class="text-xs text-sky-100/70">{{ personalUsagePercent }}% of total</p>
+        <div class="mt-6 rounded-[1.75rem] bg-black/35 px-5 py-6 ring-1 ring-surface">
+          <div class="flex flex-col gap-4">
+            <div>
+              <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">용량 상태</p>
+              <p class="mt-1 text-sm text-paper-oklch/70">/mnt/data 기준 남은 공간 · 전체 사용량 · 내 사용량</p>
+            </div>
+            <div class="h-4 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
+              <div class="flex h-full w-full">
+                <span
+                  class="h-full bg-sky-400/80 transition-all"
+                  :style="{ width: personalUsagePercent + '%' }"
+                  aria-label="개인 사용량"
+                ></span>
+                <span
+                  class="h-full bg-amber-400/80 transition-all"
+                  :style="{ width: otherUsagePercent + '%' }"
+                  aria-label="팀 사용량"
+                ></span>
+                <span
+                  class="h-full bg-emerald-400/70 transition-all"
+                  :style="{ width: remainingPercent + '%' }"
+                  aria-label="남은 공간"
+                ></span>
+              </div>
+            </div>
+            <div class="grid gap-4 text-sm text-paper-oklch/80 sm:grid-cols-3">
+              <div class="flex items-center gap-2">
+                <span class="size-3 rounded-full bg-emerald-400/80"></span>
+                <div>
+                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">남은 공간</p>
+                  <p class="font-semibold text-paper-oklch">{{ formatBytes(remainingBytes) }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="size-3 rounded-full bg-amber-400/90"></span>
+                <div>
+                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">팀 사용량</p>
+                  <p class="font-semibold text-paper-oklch">{{ formatBytes(otherUsageBytes) }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="size-3 rounded-full bg-sky-400/90"></span>
+                <div>
+                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">내 사용량</p>
+                  <p class="font-semibold text-paper-oklch">{{ formatBytes(personalUsageBytes) }}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -493,6 +527,16 @@ const personalUsageBytes = computed(() => storageStats.value?.data.userBytes ?? 
 const personalUsagePercent = computed(() => {
   const total = storageTotalBytes.value || 1
   return Math.min(100, Math.round((personalUsageBytes.value / total) * 100))
+})
+const otherUsageBytes = computed(() => Math.max(usedCapacityBytes.value - personalUsageBytes.value, 0))
+const otherUsagePercent = computed(() => {
+  const total = storageTotalBytes.value || 1
+  return Math.max(0, Math.min(100, Math.round((otherUsageBytes.value / total) * 100)))
+})
+const remainingPercent = computed(() => {
+  const total = storageTotalBytes.value || 1
+  const usedShare = Math.min(total, personalUsageBytes.value + otherUsageBytes.value)
+  return Math.max(0, Math.min(100, Math.round(((total - usedShare) / total) * 100)))
 })
 
 const pinnedGridColsClass = computed(() => {
