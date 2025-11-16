@@ -37,21 +37,21 @@
               <div class="flex items-center gap-3">
                 <span class="size-3 rounded-full bg-emerald-400/80"></span>
                 <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">남은 공간</p>
+                  <p class="text-xs uppercase text-paper-oklch/50 font-bold">남은 공간</p>
                   <p class="font-semibold">{{ formatBytes(remainingBytes) }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-3">
                 <span class="size-3 rounded-full bg-amber-300/90"></span>
                 <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">사용 중</p>
+                  <p class="text-xs uppercase text-paper-oklch/50 font-bold">사용 중</p>
                   <p class="font-semibold">{{ formatBytes(usedCapacityBytes) }}</p>
                 </div>
               </div>
               <div class="flex items-center gap-3">
                 <span class="size-3 rounded-full bg-sky-400/90"></span>
                 <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">내 사용량</p>
+                  <p class="text-xs uppercase text-paper-oklch/50 font-bold">내 사용량</p>
                   <p class="font-semibold">{{ formatBytes(personalUsageBytes) }}</p>
                 </div>
               </div>
@@ -129,14 +129,12 @@
         </div>
       </section>
 
-      <section id="library" class="grid gap-6 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,1.45fr)]">
-        <aside class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
+      <section id="library" class="space-y-6">
+        <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-lg font-semibold">폴더</h2>
-              <p class="text-xs text-paper-oklch/55">
-                {{ folderScope === 'all' ? '전체 파일 보기' : selectedFolder?.path || '루트 폴더' }}
-              </p>
+              <h2 class="text-lg font-semibold">파일</h2>
+              <p class="text-xs text-paper-oklch/55">{{ totalEntriesCount }}개 표시</p>
             </div>
             <button
               type="button"
@@ -150,62 +148,6 @@
               새 폴더
             </button>
           </div>
-          <div class="mt-4 space-y-6">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">폴더 목록</p>
-              <div v-if="scopedFolders.length" class="mt-2 space-y-1 rounded-[1rem] bg-black/20 p-2">
-                <div
-                  v-for="folder in scopedFolders"
-                  :key="folder.id"
-                  class="rounded-xl"
-                  @dragover.prevent
-                  @drop.prevent="handleFileDrop(folder.id)"
-                >
-                  <FileRow
-                    icon="folder"
-                    :name="folder.name"
-                    :detail="folder.path"
-                    actionable
-                    :active="folderScope === folder.id"
-                    show-delete
-                    :deleting="Boolean(deleteFolderState[folder.id])"
-                    @action="selectFolderScope(folder.id)"
-                    @delete="deleteFolder(folder.id)"
-                  />
-                </div>
-              </div>
-              <p v-else class="mt-2 text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
-            </div>
-
-            <div class="space-y-2 border-t border-white/10 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">전체 보기</p>
-              <button
-                type="button"
-                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-                :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
-                @click="selectFolderScope('root')"
-                @dragover.prevent
-                @drop.prevent="handleFileDrop(null)"
-              >
-                루트 폴더
-              </button>
-              <button
-                type="button"
-                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-                :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
-                @click="selectFolderScope('all')"
-                @dragover.prevent
-                @drop.prevent="handleFileDrop(null)"
-              >
-                전체 파일
-              </button>
-            </div>
-          </div>
-        </aside>
-        <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
-          <p v-if="currentPathLabel" class="text-xs text-paper-oklch/60">
-            경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span>
-          </p>
           <div class="rounded-[1.25rem] bg-black/20 p-3 ring-1 ring-surface">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div class="flex grow items-center gap-2 rounded-xl bg-black/40 px-4 py-2 text-sm text-paper-oklch ring-1 ring-surface">
@@ -226,12 +168,6 @@
               >
                 새로고침
               </button>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <div>
-              <h2 class="text-lg font-semibold">파일</h2>
-              <p class="text-xs text-paper-oklch/55">{{ totalEntriesCount }}개 표시</p>
             </div>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">

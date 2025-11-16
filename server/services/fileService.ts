@@ -111,6 +111,7 @@ export async function saveEncryptedFile(params: {
   description?: string;
   folderId?: string | null;
 }): Promise<FileRecord> {
+  const startedAt = Date.now();
   const { userId, name, mimeType, buffer, description, folderId = null } = params;
   if (!buffer.length) {
     throw new Error('Cannot store empty file');
@@ -119,10 +120,12 @@ export async function saveEncryptedFile(params: {
   const chunks = chunkBuffer(buffer, cfg.chunkSize);
   const dataKey = randomBytes(32);
   const wrappedKey = await kmsClient.encrypt(dataKey);
+  const encryptStart = performance.now();
   const encryptedChunks = await encryptChunksWithDataKey(chunks, dataKey);
+  const encryptElapsed = performance.now() - encryptStart;
   dataKey.fill(0);
 
-  return persistEncryptedChunks({
+  const record = await persistEncryptedChunks({
     userId,
     name,
     mimeType,
@@ -132,6 +135,14 @@ export async function saveEncryptedFile(params: {
     wrappedKey,
     chunks: encryptedChunks,
   });
+  console.info('[upload] file persisted', {
+    fileId: record.id,
+    size: record.size,
+    chunks: encryptedChunks.length,
+    encryptMs: Number(encryptElapsed.toFixed(2)),
+    totalMs: Date.now() - startedAt,
+  });
+  return record;
 }
 
 export function listFiles(userId: string, options: { folderId?: string | null } = {}): FileRecord[] {

@@ -103,6 +103,7 @@ export async function appendUploadChunk(options: {
   chunkIndex: number;
   data: Buffer;
 }) {
+  const receivedAt = Date.now();
   const session = await loadSession(options.sessionId);
   if (session.userId !== options.userId) {
     throw new Error('세션에 접근할 수 없습니다.');
@@ -121,15 +122,30 @@ export async function appendUploadChunk(options: {
   if (!dataKey) {
     throw new Error('업로드 세션 키를 찾을 수 없습니다. 다시 업로드해주세요.');
   }
+  const encryptStart = performance.now();
   const encrypted = await encryptionPool.encrypt(options.data, dataKey);
+  const encryptElapsed = performance.now() - encryptStart;
   const payload = Buffer.concat([encrypted.iv, encrypted.tag, encrypted.ciphertext]);
+  const writeStart = performance.now();
   await fsp.writeFile(dest, payload);
+  const writeElapsed = performance.now() - writeStart;
   session.receivedChunks += 1;
   session.receivedBytes += options.data.length;
   await saveSession(session);
+  console.info('[upload] chunk stored', {
+    sessionId: options.sessionId,
+    chunkIndex: options.chunkIndex,
+    chunkBytes: options.data.length,
+    encryptMs: Number(encryptElapsed.toFixed(2)),
+    writeMs: Number(writeElapsed.toFixed(2)),
+    endToEndMs: Date.now() - receivedAt,
+    receivedChunks: session.receivedChunks,
+    totalChunks: session.totalChunks,
+  });
 }
 
 export async function finalizeUploadSession(sessionId: string, userId: string) {
+  const finalizeStartedAt = Date.now();
   const session = await loadSession(sessionId);
   if (session.userId !== userId) {
     throw new Error('세션에 접근할 수 없습니다.');
@@ -144,6 +160,7 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
   if (!dataKey) {
     throw new Error('업로드 세션 키를 찾을 수 없습니다.');
   }
+  console.info('[upload] finalizing session', { sessionId, totalChunks: session.totalChunks, totalBytes: session.size });
   const encryptedChunks = [];
   for (let index = 0; index < session.totalChunks; index++) {
     const path = chunkPath(sessionId, index);
@@ -180,6 +197,12 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
     chunks: encryptedChunks,
   });
   cleanupSession(sessionId);
+  console.info('[upload] session finalized', {
+    sessionId,
+    totalChunks: session.totalChunks,
+    totalBytes: session.size,
+    durationMs: Date.now() - finalizeStartedAt,
+  });
   return record;
 }
 
