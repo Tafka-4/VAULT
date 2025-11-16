@@ -78,6 +78,17 @@ const getFileStmt = db.prepare(`
   WHERE id = ? AND userId = ?
 `);
 
+const sumAllFilesStmt = db.prepare(`
+  SELECT IFNULL(SUM(size), 0) as total
+  FROM files
+`);
+
+const sumFilesByUserStmt = db.prepare(`
+  SELECT IFNULL(SUM(size), 0) as total
+  FROM files
+  WHERE userId = ?
+`);
+
 const deleteFileStmt = db.prepare(`DELETE FROM files WHERE id = ? AND userId = ?`);
 
 const updateFolderStmt = db.prepare(`
@@ -157,6 +168,16 @@ export function listFiles(userId: string, options: { folderId?: string | null } 
 
 export function getFileById(fileId: string, userId: string): FileRecord | undefined {
   return getFileStmt.get(fileId, userId) as FileRecord | undefined;
+}
+
+export function getTotalStoredBytes(): number {
+  const row = sumAllFilesStmt.get() as { total: number | bigint } | undefined;
+  return row && row.total ? Number(row.total) : 0;
+}
+
+export function getUserStoredBytes(userId: string): number {
+  const row = sumFilesByUserStmt.get(userId) as { total: number | bigint } | undefined;
+  return row && row.total ? Number(row.total) : 0;
 }
 
 export function deleteFile(fileId: string, userId: string): boolean {

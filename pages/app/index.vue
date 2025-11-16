@@ -10,7 +10,7 @@
             <h1 class="text-2xl font-extrabold">내 스토리지</h1>
             <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
-          <p class="text-xs text-paper-oklch/60">총 용량 {{ formatBytes(storageEffectiveTotalBytes) }}</p>
+          <p class="text-xs text-paper-oklch/60">총 용량 {{ formatBytes(storageTotalBytes) }}</p>
         </div>
         <div class="mt-6 rounded-[1.75rem] bg-black/35 px-5 py-5 ring-1 ring-surface">
           <div class="space-y-4">
@@ -513,43 +513,29 @@ const pinnedGridColsClass = computed(() => {
 const totalUsageBytes = computed(() => files.value.reduce((sum, file) => sum + file.size, 0))
 
 const storageTotalBytes = computed(() => storageStats.value?.data.totalBytes ?? quotaBytes)
-const storageEffectiveTotalBytes = computed(() => {
-  if (!storageStats.value?.data) {
-    return storageTotalBytes.value
-  }
-  const used = Math.max(storageStats.value.data.usedBytes, 0)
-  const free = Math.max(storageStats.value.data.freeBytes, 0)
-  const measured = used + free
-  if (measured > 0) {
-    return Math.min(measured, storageTotalBytes.value)
-  }
-  return storageTotalBytes.value
-})
 const usedCapacityBytes = computed(() => {
   if (storageStats.value?.data) {
-    return Math.min(Math.max(storageStats.value.data.usedBytes, 0), storageEffectiveTotalBytes.value)
+    return Math.max(storageStats.value.data.usedBytes, 0)
   }
   return totalUsageBytes.value
 })
 const remainingBytes = computed(() => {
   if (storageStats.value?.data) {
-    const freeReported = Math.max(storageStats.value.data.freeBytes, 0)
-    const effectiveFree = Math.max(storageEffectiveTotalBytes.value - usedCapacityBytes.value, 0)
-    return Math.min(freeReported, effectiveFree)
+    return Math.max(storageStats.value.data.freeBytes, 0)
   }
   return Math.max(quotaBytes - totalUsageBytes.value, 0)
 })
 const personalUsageBytes = computed(() => storageStats.value?.data.userBytes ?? totalUsageBytes.value)
 const usedCapacityPercent = computed(() => {
-  const total = storageEffectiveTotalBytes.value || 1
+  const total = storageTotalBytes.value || 1
   return Math.min(100, Math.round((usedCapacityBytes.value / total) * 100))
 })
 const personalUsagePercent = computed(() => {
-  const total = storageEffectiveTotalBytes.value || 1
+  const total = storageTotalBytes.value || 1
   return Math.min(usedCapacityPercent.value, Math.round((personalUsageBytes.value / total) * 100))
 })
 const remainingPercent = computed(() => {
-  const total = storageEffectiveTotalBytes.value || 1
+  const total = storageTotalBytes.value || 1
   return Math.max(0, Math.min(100, Math.round(((total - usedCapacityBytes.value) / total) * 100)))
 })
 
