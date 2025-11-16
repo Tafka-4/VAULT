@@ -9,56 +9,17 @@
             <h1 class="text-2xl font-extrabold">내 스토리지</h1>
             <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
-          <p class="text-xs text-paper-oklch/60">총 용량 {{ formatBytes(storageTotalBytes) }}</p>
         </div>
-        <div class="mt-6 rounded-[1.75rem] bg-black/35 px-5 py-6 ring-1 ring-surface">
-          <div class="flex flex-col gap-4">
-            <div>
-              <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">용량 상태</p>
-              <p class="mt-1 text-sm text-paper-oklch/70">/mnt/data 기준 남은 공간 · 전체 사용량 · 내 사용량</p>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-1xl bg-black/35 px-4 py-4 text-sm ring-1 ring-surface">
+            <p class="text-xs uppercase text-paper-oklch/50 font-bold">총 저장 용량</p>
+            <p class="mt-2 text-2xl font-semibold">
+              <span class="text-emerald-200/90 font-bold">{{ usagePercent }}%</span> 사용
+            </p>
+            <div class="mt-3 h-2 rounded-full bg-white/10">
+              <div class="h-full rounded-full bg-white/70 transition-all" :style="{ width: usagePercent + '%' }" />
             </div>
-            <div class="h-2 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
-              <div class="relative h-full w-full">
-                <span
-                  class="absolute inset-y-0 left-0 h-full bg-amber-300/80 transition-all"
-                  :style="{ width: usedCapacityPercent + '%' }"
-                  aria-label="사용 중"
-                ></span>
-                <span
-                  class="absolute inset-y-0 left-0 h-full bg-sky-400/90 transition-all"
-                  :style="{ width: personalUsagePercent + '%' }"
-                  aria-label="내 사용량"
-                ></span>
-                <span
-                  class="absolute inset-y-0 right-0 h-full bg-emerald-400/70 transition-all"
-                  :style="{ width: remainingPercent + '%' }"
-                  aria-label="남은 공간"
-                ></span>
-              </div>
-            </div>
-            <div class="grid gap-4 text-sm text-paper-oklch/80 sm:grid-cols-3">
-              <div class="flex items-center gap-2">
-                <span class="size-3 rounded-full bg-emerald-400/80"></span>
-                <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">남은 공간</p>
-                  <p class="font-semibold text-paper-oklch">{{ formatBytes(remainingBytes) }}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="size-3 rounded-full bg-amber-400/90"></span>
-                <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">사용 중</p>
-                  <p class="font-semibold text-paper-oklch">{{ formatBytes(usedCapacityBytes) }}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="size-3 rounded-full bg-sky-400/90"></span>
-                <div>
-                  <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/50">내 사용량</p>
-                  <p class="font-semibold text-paper-oklch">{{ formatBytes(personalUsageBytes) }}</p>
-                </div>
-              </div>
-            </div>
+            <p class="mt-2 text-xs text-paper-oklch/55">{{ formatBytes(totalUsageBytes) }} / {{ formatBytes(quotaBytes) }}</p>
           </div>
         </div>
       </div>
@@ -132,12 +93,14 @@
         </div>
       </section>
 
-      <section id="library" class="space-y-6">
-        <div class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
+      <section id="library" class="grid gap-6 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,1.45fr)]">
+        <aside class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
           <div class="flex items-center justify-between">
             <div>
               <h2 class="text-lg font-semibold">폴더</h2>
-              <p class="text-xs text-paper-oklch/55">루트 기준으로 표시됩니다.</p>
+              <p class="text-xs text-paper-oklch/55">
+                {{ folderScope === 'all' ? '전체 파일 보기' : selectedFolder?.path || '루트 폴더' }}
+              </p>
             </div>
             <button
               type="button"
@@ -151,38 +114,68 @@
               새 폴더
             </button>
           </div>
-          <div
-            v-if="rootFolders.length"
-            class="mt-4 grid gap-3 md:grid-cols-2"
-          >
-            <div
-              v-for="folder in rootFolders"
-              :key="folder.id"
-              class="rounded-2xl bg-black/30 px-4 py-4 ring-1 ring-surface transition hover:bg-black/20"
-              @dragover.prevent
-              @drop.prevent="handleFileDrop(folder.id)"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="font-semibold text-paper-oklch">{{ folder.name }}</p>
-                  <p class="text-xs text-paper-oklch/60">{{ folder.path }}</p>
-                </div>
+          <div class="mt-4 space-y-6">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">폴더 목록</p>
+              <div v-if="scopedFolders.length" class="mt-2 space-y-1">
                 <button
+                  v-for="folder in scopedFolders"
+                  :key="folder.id"
                   type="button"
-                  class="tap-area rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
-                  :disabled="deleteFolderState[folder.id]"
-                  @click="deleteFolder(folder.id)"
+                  class="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm transition"
+                  :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
+                  @click="selectFolderScope(folder.id)"
+                  @dragover.prevent
+                  @drop.prevent="handleFileDrop(folder.id)"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
-                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium truncate">{{ folder.name }}</p>
+                    <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
+                  </div>
+                  <span
+                    class="tap-area shrink-0 rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10"
+                    :class="[
+                      folderScope === folder.id ? 'hover:bg-black/5' : '',
+                      deleteFolderState[folder.id] ? 'pointer-events-none opacity-40' : ''
+                    ]"
+                    role="button"
+                    :aria-disabled="Boolean(deleteFolderState[folder.id])"
+                    @click.stop="deleteFolder(folder.id)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
+                    </svg>
+                  </span>
                 </button>
               </div>
+              <p v-else class="mt-2 text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
+            </div>
+
+            <div class="space-y-2 border-t border-white/10 pt-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">전체 보기</p>
+              <button
+                type="button"
+                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+                @click="selectFolderScope('root')"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(null)"
+              >
+                루트 폴더
+              </button>
+              <button
+                type="button"
+                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+                @click="selectFolderScope('all')"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(null)"
+              >
+                전체 파일
+              </button>
             </div>
           </div>
-          <p v-else class="mt-4 text-sm text-paper-oklch/60">루트 폴더가 없습니다.</p>
-        </div>
-
+        </aside>
         <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
           <div class="rounded-[1.25rem] bg-black/20 p-3 ring-1 ring-surface">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -209,10 +202,10 @@
           <div class="flex items-center justify-between">
             <div>
               <h2 class="text-lg font-semibold">파일</h2>
-              <p class="text-xs text-paper-oklch/55">{{ filteredFiles.length }}개 표시</p>
+              <p class="text-xs text-paper-oklch/55">{{ totalEntriesCount }}개 표시</p>
             </div>
           </div>
-          <div class="rounded-[1.25rem] bg-black/30 p-2" @dragover.prevent @drop.prevent="handleFileDrop(null)">
+          <div class="rounded-[1.25rem] bg-black/30 p-2">
             <template v-if="filteredFiles.length">
               <FileRow
                 v-for="file in filteredFiles"
@@ -303,10 +296,10 @@ definePageMeta({ layout: 'app' })
 
 type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
-type StorageStatsResponse = { data: { totalBytes: number; usedBytes: number; freeBytes: number; userBytes: number } }
 
 const search = ref('')
 const quotaBytes = 512 * 1024 * 1024 * 1024 // 512GB
+const folderScope = ref<'all' | 'root' | string>('all')
 const requestFetch = useRequestFetch()
 
 const { data, pending, refresh } = await useFetch<FilesResponse>('/api/files', {
@@ -317,19 +310,34 @@ const { data: foldersData, refresh: refreshFolders } = await useFetch<FoldersRes
   key: 'folders-dashboard'
 })
 
-const { data: storageStats } = await useFetch<StorageStatsResponse>('/api/storage/stats', {
-  key: 'storage-stats'
-})
-
 const files = computed(() => data.value?.data ?? [])
 const folders = computed(() => foldersData.value?.data ?? [])
 
+const folderScopeFilter = computed(() => {
+  if (folderScope.value === 'all') return undefined
+  if (folderScope.value === 'root') return null
+  return folderScope.value
+})
+
+const folderParentFilter = computed(() => (folderScope.value === 'root' || folderScope.value === 'all' ? null : folderScope.value))
+
+const scopedFolders = computed(() => folders.value.filter(folder => folder.parentId === folderParentFilter.value))
+
+const scopedFiles = computed(() => {
+  const target = folderScopeFilter.value
+  if (target === undefined) return files.value
+  if (target === null) return files.value.filter(file => file.folderId == null)
+  return files.value.filter(file => file.folderId === target)
+})
+
 const filteredFiles = computed(() => {
   const query = search.value.trim().toLowerCase()
-  const list = files.value
-  if (!query) return list
-  return list.filter(file => file.name.toLowerCase().includes(query))
+  const scopeList = scopedFiles.value
+  if (!query) return scopeList
+  return scopeList.filter(file => file.name.toLowerCase().includes(query))
 })
+
+const totalEntriesCount = computed(() => filteredFiles.value.length)
 
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 
@@ -337,7 +345,11 @@ const pinnedFiles = computed(() =>
   [...files.value].sort((a, b) => b.size - a.size).slice(0, 2)
 )
 
-const rootFolders = computed(() => folders.value.filter(folder => !folder.parentId))
+const selectedFolder = computed(() => {
+  if (folderScope.value === 'all') return null
+  if (folderScope.value === 'root') return { id: 'root', name: '루트', path: '/' }
+  return folders.value.find(folder => folder.id === folderScope.value) ?? null
+})
 
 const deleteState = ref<Record<string, boolean>>({})
 const deleteFolderState = ref<Record<string, boolean>>({})
@@ -384,6 +396,9 @@ const deleteFolder = async (folderId: string) => {
   deleteFolderState.value = { ...deleteFolderState.value, [folderId]: true }
   try {
     await requestFetch(`/api/folders/${folderId}`, { method: 'DELETE' })
+    if (folderScope.value === folderId) {
+      folderScope.value = 'all'
+    }
     await Promise.all([refreshFolders(), refresh()])
   } catch (error) {
     alert(getErrorMessage(error) || '폴더 삭제에 실패했습니다.')
@@ -411,6 +426,12 @@ const showCreateFolderModal = ref(false)
 const newFolderName = ref('')
 const creatingFolder = ref(false)
 
+const currentParentId = computed(() => {
+  if (folderScope.value === 'all') return null
+  if (folderScope.value === 'root') return null
+  return folderScope.value
+})
+
 const openCreateFolderModal = () => {
   newFolderName.value = ''
   showCreateFolderModal.value = true
@@ -430,7 +451,7 @@ const submitCreateFolder = async () => {
   try {
     await requestFetch('/api/folders', {
       method: 'POST',
-      body: { name: newFolderName.value, parentId: null }
+      body: { name: newFolderName.value, parentId: currentParentId.value }
     })
     await Promise.all([refreshFolders(), refresh()])
     closeCreateFolderModal()
@@ -441,32 +462,9 @@ const submitCreateFolder = async () => {
   }
 }
 
-const storageTotalBytes = computed(() => storageStats.value?.data.totalBytes ?? quotaBytes)
-const remainingBytes = computed(() => {
-  if (storageStats.value?.data) {
-    return Math.max(storageStats.value.data.freeBytes, 0)
-  }
-  return Math.max(quotaBytes - totalUsageBytes.value, 0)
-})
-const usedCapacityBytes = computed(() => {
-  if (storageStats.value?.data) {
-    return Math.max(storageStats.value.data.usedBytes, 0)
-  }
-  return totalUsageBytes.value
-})
-const personalUsageBytes = computed(() => storageStats.value?.data.userBytes ?? totalUsageBytes.value)
-const usedCapacityPercent = computed(() => {
-  const total = storageTotalBytes.value || 1
-  return Math.min(100, Math.round((usedCapacityBytes.value / total) * 100))
-})
-const personalUsagePercent = computed(() => {
-  const total = storageTotalBytes.value || 1
-  return Math.min(usedCapacityPercent.value, Math.round((personalUsageBytes.value / total) * 100))
-})
-const remainingPercent = computed(() => {
-  const total = storageTotalBytes.value || 1
-  return Math.max(0, Math.min(100, Math.round(((total - usedCapacityBytes.value) / total) * 100)))
-})
+const selectFolderScope = (scope: 'all' | 'root' | string) => {
+  folderScope.value = scope
+}
 
 const pinnedGridColsClass = computed(() => {
   if (pinnedFiles.value.length === 0) return 'grid-cols-1'
@@ -474,6 +472,8 @@ const pinnedGridColsClass = computed(() => {
 })
 
 const totalUsageBytes = computed(() => files.value.reduce((sum, file) => sum + file.size, 0))
+const usagePercent = computed(() => Math.min(100, Math.round((totalUsageBytes.value / quotaBytes) * 100)))
+
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
