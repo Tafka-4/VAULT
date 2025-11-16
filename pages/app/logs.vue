@@ -33,7 +33,10 @@
               {{ filter.label }}
             </button>
           </div>
-          <span class="text-xs text-paper-oklch/55">최근 30일</span>
+          <div class="flex items-center gap-3 text-xs text-paper-oklch/55">
+            <span>{{ logs.length }}건 표시</span>
+            <button type="button" class="tap-area rounded-xl px-3 py-1 hover:bg-white/10" @click="refreshLogs">새로고침</button>
+          </div>
         </div>
 
         <div class="rounded-[1.5rem] bg-black/30 ring-1 ring-surface">
@@ -41,30 +44,36 @@
             <thead class="text-xs uppercase tracking-[0.18em] text-paper-oklch/45">
               <tr>
                 <th class="px-4 py-3">시간</th>
-                <th class="px-4 py-3">사용자</th>
                 <th class="px-4 py-3">활동</th>
-                <th class="px-4 py-3">위치</th>
+                <th class="px-4 py-3">대상</th>
+                <th class="px-4 py-3">세부 정보</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="entry in filteredLogs" :key="entry.time" class="border-t border-white/5">
-                <td class="px-4 py-3 text-xs text-paper-oklch/50">{{ entry.time }}</td>
+              <tr v-if="!pending && !filteredLogs.length">
+                <td colspan="4" class="px-4 py-6 text-center text-xs text-paper-oklch/55">최근 활동 로그가 없습니다.</td>
+              </tr>
+              <tr v-for="entry in filteredLogs" :key="entry.id" class="border-t border-white/5">
+                <td class="px-4 py-3 text-xs text-paper-oklch/50">{{ formatTimestamp(entry.createdAt) }}</td>
                 <td class="px-4 py-3">
+                  <p class="font-semibold text-paper-oklch/85">{{ actionLabel(entry.action) }}</p>
+                  <p class="text-xs text-paper-oklch/55">{{ describeAction(entry) }}</p>
+                </td>
+                <td class="px-4 py-3 text-sm text-paper-oklch/80">
                   <div class="flex flex-col">
-                    <span class="font-medium text-paper-oklch/80">{{ entry.user }}</span>
-                    <span class="text-xs text-paper-oklch/55">{{ entry.device }}</span>
+                    <span class="font-medium">{{ entry.targetName || '—' }}</span>
+                    <span class="text-xs text-paper-oklch/55">{{ entry.targetId || '' }}</span>
                   </div>
                 </td>
-                <td class="px-4 py-3 text-sm text-paper-oklch/75">{{ entry.action }}</td>
-                <td class="px-4 py-3 text-xs text-paper-oklch/55">{{ entry.location }}</td>
+                <td class="px-4 py-3 text-xs text-paper-oklch/55">{{ formatMetadata(entry) }}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-paper-oklch/55">
-          <span>로그는 90일간 보관됩니다.</span>
-          <button type="button" class="tap-area rounded-full px-3 py-1 hover:bg-white/10">CSV 내보내기</button>
+          <span>최근 50개의 활동을 표시합니다.</span>
+          <button type="button" class="tap-area rounded-full px-3 py-1 hover:bg-white/10" @click="downloadCsv">CSV 내보내기</button>
         </div>
       </div>
     </section>
@@ -72,71 +81,114 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, ref } from 'vue'
+import type { ActivityLog } from '~/types/activity'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
-type FilterKey = 'all' | 'share' | 'security' | 'download'
+type FilterKey = 'all' | 'upload' | 'download' | 'delete' | 'move'
 
-const state = reactive<{ filter: FilterKey }>({ filter: 'all' })
+const selectedFilter = ref<FilterKey>('all')
 
-const filterLabels: Record<FilterKey, string> = {
-  all: '전체',
-  share: '공유',
-  security: '보안',
-  download: '다운로드'
-}
+const { data, pending, refresh: refreshLogs } = await useFetch<{ data: ActivityLog[] }>('/api/activity/logs', {
+  key: 'activity-logs'
+})
 
-const filters = computed(() =>
-  (Object.keys(filterLabels) as FilterKey[]).map(value => ({
-    value,
-    label: filterLabels[value],
-    active: state.filter === value
-  }))
-)
+const logs = computed(() => data.value?.data ?? [])
 
-const logs = [
-  {
-    time: '오늘 · 09:42',
-    user: 'Joy Park',
-    device: 'macOS · Chrome',
-    action: 'Moodboard-08.jpg 링크 열람',
-    location: 'Seoul, KR',
-    type: 'share' as FilterKey
-  },
-  {
-    time: '오늘 · 08:18',
-    user: '관리자',
-    device: 'iOS · VAULT Mobile',
-    action: '2단계 인증 백업 키 생성',
-    location: 'Seoul, KR',
-    type: 'security' as FilterKey
-  },
-  {
-    time: '어제 · 22:03',
-    user: 'Mina Park',
-    device: 'Windows · Edge',
-    action: '파트너계약서.zip 다운로드',
-    location: 'Busan, KR',
-    type: 'download' as FilterKey
-  },
-  {
-    time: '어제 · 17:26',
-    user: 'Lukas',
-    device: 'Ubuntu · Firefox',
-    action: '프로덕션 자료실 편집',
-    location: 'Berlin, DE',
-    type: 'share' as FilterKey
-  }
-]
+const filters = computed(() => {
+  const base: { value: FilterKey; label: string }[] = [
+    { value: 'all', label: '전체' },
+    { value: 'upload', label: '업로드' },
+    { value: 'download', label: '다운로드' },
+    { value: 'delete', label: '삭제' },
+    { value: 'move', label: '이동' }
+  ]
+  return base.map(filter => ({ ...filter, active: selectedFilter.value === filter.value }))
+})
 
 const filteredLogs = computed(() => {
-  if (state.filter === 'all') return logs
-  return logs.filter(entry => entry.type === state.filter)
+  if (selectedFilter.value === 'all') return logs.value
+  return logs.value.filter(entry => entry.action === selectedFilter.value)
 })
 
 const selectFilter = (filter: FilterKey) => {
-  state.filter = filter
+  selectedFilter.value = filter
+}
+
+const actionLabel = (action: string) => {
+  switch (action) {
+    case 'upload':
+      return '파일 업로드'
+    case 'download':
+      return '파일 다운로드'
+    case 'delete':
+      return '파일 삭제'
+    case 'move':
+      return '파일 이동'
+    default:
+      return action
+  }
+}
+
+const describeAction = (entry: ActivityLog) => {
+  const meta = (entry.metadata || null) as Record<string, any> | null
+  if (entry.action === 'move' && meta) {
+    const from = meta.from ?? '어디서든'
+    const to = meta.to ?? '루트'
+    return `폴더 이동: ${from || '루트'} → ${to || '루트'}`
+  }
+  if (entry.action === 'download' && meta) {
+    const bytes = typeof meta.bytes === 'number' ? meta.bytes : null
+    return bytes ? `${formatBytes(bytes)} 전송` : '다운로드 실행'
+  }
+  if (entry.action === 'upload' && meta) {
+    const size = typeof meta.size === 'number' ? meta.size : null
+    return size ? `${formatBytes(size)} 업로드 완료` : '업로드 완료'
+  }
+  return '작업 완료'
+}
+
+const formatMetadata = (entry: ActivityLog) => {
+  if (entry.action === 'move' && entry.metadata) {
+    return describeAction(entry)
+  }
+  const meta = entry.metadata as Record<string, any> | null
+  if (meta?.chunks) {
+    return `${meta.chunks}개 청크`
+  }
+  return ''
+}
+
+const formatTimestamp = (timestamp: number) => {
+  const date = new Date(timestamp)
+  return date.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit++
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)}${units[unit]}`
+}
+
+const downloadCsv = () => {
+  if (!process.client) return
+  const header = ['createdAt', 'action', 'targetId', 'targetName']
+  const rows = logs.value.map(log => [new Date(log.createdAt).toISOString(), log.action, log.targetId ?? '', log.targetName ?? ''])
+  const csv = [header, ...rows].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'activity-logs.csv'
+  link.click()
+  URL.revokeObjectURL(url)
 }
 </script>

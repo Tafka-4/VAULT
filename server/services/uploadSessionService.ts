@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { randomBytes } from 'node:crypto';
 import { getAppConfig } from '../utils/config';
 import { persistEncryptedChunks, getFileById } from './fileService';
+import { recordActivityLog } from './activityLogService';
 import { kmsClient } from '../utils/kmsClient';
 import { encryptionPool } from '../utils/encryptionPool';
 
@@ -240,6 +241,13 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
     totalChunks: session.totalChunks,
     totalBytes: session.size,
     durationMs: Date.now() - finalizeStartedAt,
+  });
+  recordActivityLog({
+    userId: session.userId,
+    action: 'upload',
+    targetId: record.id,
+    targetName: record.name,
+    metadata: { size: record.size, chunks: record.totalChunks },
   });
   return record;
 }

@@ -87,10 +87,6 @@
                 <span>업데이트</span>
                 <span>{{ new Date(file.updatedAt).toLocaleString('ko-KR') }}</span>
               </li>
-              <li class="flex items-center justify-between">
-                <span>암호화 상태</span>
-                <span>활성 (KMS)</span>
-              </li>
             </ul>
           </div>
         </div>
@@ -98,20 +94,18 @@
         <aside class="space-y-5">
           <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
             <div class="flex items-center justify-between">
-              <h2 class="text-sm font-bold text-paper-oklch/55">보안 링크</h2>
-            </div>
-            <p class="text-sm text-paper-oklch/70">링크는 로그인된 사용자에게만 유효합니다.</p>
-            <div class="space-y-3 rounded-[1.5rem] bg-black/35 p-4 text-sm ring-1 ring-surface">
-              <div class="rounded-xl bg-black/40 px-3 py-3 text-xs text-paper-oklch/55 break-all">{{ fullShareLink }}</div>
-              <button
-                type="button"
-                class="tap-area w-full rounded-xl bg-white/90 px-4 py-2 text-xs font-semibold text-black transition hover:bg-white"
-                @click="copyLink"
+              <h2 class="text-sm font-bold text-paper-oklch/55">공유 관리</h2>
+              <NuxtLink
+                to="/app/share"
+                class="tap-area rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-black hover:bg-white"
               >
-                링크 복사
-              </button>
-              <p class="text-xs text-paper-oklch/50">{{ copyMessage }}</p>
+                공유 허브
+              </NuxtLink>
             </div>
+            <p class="text-sm text-paper-oklch/70">
+              모든 파일 공유 링크와 초대 관리는 <span class="font-semibold">공유 허브</span>에서 확인할 수 있습니다.
+            </p>
+            <p class="text-xs text-paper-oklch/55">필요한 파일을 공유 목록에 추가하려면 공유 허브에서 새 링크를 생성하세요.</p>
           </div>
 
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
@@ -147,7 +141,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getErrorMessage } from '~/utils/errorMessage'
 import type { StoredFile } from '~/types/storage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
@@ -206,26 +199,6 @@ const relatedFiles = computed(() => {
   const list = listResponse.value?.data ?? []
   return list.filter(item => item.id !== fileId.value).slice(0, 3)
 })
-
-const copyMessage = ref('링크는 세션이 유효할 때만 열 수 있습니다.')
-let copyTimer: ReturnType<typeof setTimeout> | undefined
-const requestURL = useRequestURL()
-const origin = computed(() => (process.client ? window.location.origin : requestURL.origin))
-const fullShareLink = computed(() => `${origin.value}/app/file-preview/${fileId.value}`)
-
-const copyLink = async () => {
-  if (!file.value || !process.client) return
-  if (copyTimer) clearTimeout(copyTimer)
-  try {
-    await navigator.clipboard.writeText(fullShareLink.value)
-    copyMessage.value = '복사되었습니다.'
-  } catch (e) {
-    copyMessage.value = getErrorMessage(e) || '복사에 실패했습니다.'
-  }
-  copyTimer = setTimeout(() => {
-    copyMessage.value = '링크는 세션이 유효할 때만 열 수 있습니다.'
-  }, 2000)
-}
 
 const refreshFile = async () => {
   await refresh()

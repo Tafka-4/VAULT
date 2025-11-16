@@ -38,30 +38,84 @@
           <div class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
             <div class="flex items-center justify-between">
               <h2 class="text-base font-semibold">활성 공유 링크</h2>
-              <span class="text-xs text-paper-oklch/50">{{ activeLinks.length }}개</span>
+              <span class="text-xs text-paper-oklch/50">{{ shareLinks.length }}개</span>
             </div>
-            <ul class="mt-4 space-y-3">
+            <form class="mt-4 grid gap-3 text-sm text-paper-oklch/80" @submit.prevent="createLink">
+              <div class="grid gap-2">
+                <label class="text-xs text-paper-oklch/55">파일 선택</label>
+                <select
+                  v-model="formState.fileId"
+                  class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+                >
+                  <option disabled value="">파일을 선택하세요</option>
+                  <option v-for="item in files" :key="item.id" :value="item.id">
+                    {{ item.name }} · {{ formatBytes(item.size) }}
+                  </option>
+                </select>
+              </div>
+              <div class="grid gap-2">
+                <label class="text-xs text-paper-oklch/55">만료일 (일)</label>
+                <input
+                  v-model.number="formState.expiresInDays"
+                  type="number"
+                  min="1"
+                  max="30"
+                  class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+                />
+              </div>
+              <div class="grid gap-2">
+                <label class="text-xs text-paper-oklch/55">비밀번호 (선택)</label>
+                <input
+                  v-model="formState.password"
+                  type="text"
+                  placeholder="최소 4자"
+                  class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+                />
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-paper-oklch/60">
+                <span>공유 링크는 지정한 만료일 이후 자동으로 비활성화됩니다.</span>
+                <button
+                  type="submit"
+                  class="tap-area rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-black hover:bg-white disabled:opacity-60"
+                  :disabled="creatingLink"
+                >
+                  {{ creatingLink ? '생성 중...' : '공유 링크 생성' }}
+                </button>
+              </div>
+              <p v-if="copyMessage" class="text-xs text-emerald-300/80">{{ copyMessage }}</p>
+            </form>
+
+            <ul class="mt-6 space-y-3" v-if="shareLinks.length">
               <li
-                v-for="link in activeLinks"
-                :key="link.name"
+                v-for="link in shareLinks"
+                :key="link.id"
                 class="rounded-[1.5rem] bg-black/35 p-4 text-sm ring-1 ring-surface"
               >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p class="font-semibold">{{ link.name }}</p>
-                    <p class="text-xs text-paper-oklch/55">{{ link.detail }}</p>
+                    <p class="font-semibold">{{ link.fileName }}</p>
+                    <p class="text-xs text-paper-oklch/55">{{ formatBytes(link.fileSize) }} · 만료 {{ formatRelative(link.expiresAt) }}</p>
                   </div>
-                  <span class="rounded-full bg-white/10 px-3 py-1 text-xs text-paper-oklch/55">{{ link.expires }}</span>
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="rounded-full bg-white/10 px-3 py-1 text-paper-oklch/60">
+                      {{ link.hasPassword ? '비밀번호' : '공개' }}
+                    </span>
+                    <button type="button" class="tap-area rounded-full px-3 py-1 text-paper-oklch/55 hover:bg-white/10" @click="deleteLink(link.id)">
+                      제거
+                    </button>
+                  </div>
                 </div>
-                <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-paper-oklch/60">
-                  <span class="rounded-full bg-white/5 px-3 py-1">{{ link.permission }}</span>
-                  <span>{{ link.lastViewed }}</span>
-                  <NuxtLink :to="link.manageTo" class="tap-area rounded-xl px-3 py-1 hover:bg-white/10">
-                    관리
-                  </NuxtLink>
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-paper-oklch/55">
+                  <code class="grow rounded-xl bg-black/40 px-3 py-2 break-all">{{ shareUrl(link.id) }}</code>
+                  <button type="button" class="tap-area rounded-full bg-white/90 px-3 py-2 text-[11px] font-semibold text-black" @click="copyLink(link.id)">
+                    복사
+                  </button>
                 </div>
               </li>
             </ul>
+            <p v-else class="mt-4 rounded-[1.5rem] bg-black/30 px-4 py-6 text-center text-xs text-paper-oklch/55 ring-1 ring-surface">
+              공유 링크가 없습니다. 위 양식을 사용해 첫 링크를 생성하세요.
+            </p>
           </div>
         </section>
 
@@ -71,7 +125,7 @@
               <h2 class="text-base font-semibold">즐겨찾는 공유 폴더</h2>
               <NuxtLink to="/app" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">열기</NuxtLink>
             </div>
-            <ul class="space-y-2 text-sm text-paper-oklch/70">
+            <ul class="space-y-2 text-sm text-paper-oklch/70" v-if="pinnedShare.length">
               <li
                 v-for="folder in pinnedShare"
                 :key="folder.name"
@@ -84,6 +138,7 @@
                 <span class="text-xs text-paper-oklch/50">{{ folder.updated }}</span>
               </li>
             </ul>
+            <p v-else class="text-xs text-paper-oklch/55">크기가 큰 파일이 여기에 표시됩니다.</p>
           </div>
 
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
@@ -112,43 +167,133 @@
 </template>
 
 <script setup lang="ts">
+import { computed, reactive, ref } from 'vue'
+import type { StoredFile } from '~/types/storage'
+import type { ShareLink } from '~/types/share'
+import { getErrorMessage } from '~/utils/errorMessage'
+
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
-const activeLinks = [
-  {
-    name: '봄 캠페인 무드보드',
-    detail: '읽기 전용 · 만료 7일 전 알림',
-    expires: '만료 6일 후',
-    permission: '읽기 전용',
-    lastViewed: '어제 외부 파트너 열람',
-    manageTo: '/app/share-settings'
-  },
-  {
-    name: '프로덕션 자료실',
-    detail: '편집 권한 · 내부 팀',
-    expires: '만료 없음',
-    permission: '편집 가능',
-    lastViewed: 'Joy가 2시간 전 수정',
-    manageTo: '/app/share-settings'
+type FilesResponse = { data: StoredFile[] }
+type ShareLinksResponse = { data: ShareLink[] }
+
+const requestFetch = useRequestFetch()
+
+const { data: filesData } = await useFetch<FilesResponse>('/api/files', {
+  key: 'files-share'
+})
+
+const { data: shareLinksData, refresh: refreshShareLinks } = await useFetch<ShareLinksResponse>('/api/share-links', {
+  key: 'share-links'
+})
+
+const files = computed(() => filesData.value?.data ?? [])
+const shareLinks = computed(() => shareLinksData.value?.data ?? [])
+
+const formState = reactive({
+  fileId: '',
+  expiresInDays: 7,
+  password: ''
+})
+
+const creatingLink = ref(false)
+const copyMessage = ref<string | null>(null)
+
+const requestURL = useRequestURL()
+const origin = computed(() => (process.client ? window.location.origin : requestURL.origin))
+const shareUrl = (id: string) => `${origin.value}/share/${id}`
+
+const createLink = async () => {
+  if (!formState.fileId) {
+    alert('공유할 파일을 선택하세요.')
+    return
   }
-]
+  creatingLink.value = true
+  try {
+    await requestFetch('/api/share-links', {
+      method: 'POST',
+      body: {
+        fileId: formState.fileId,
+        expiresInDays: formState.expiresInDays,
+        password: formState.password || undefined
+      }
+    })
+    formState.password = ''
+    await refreshShareLinks()
+  } catch (error) {
+    alert(getErrorMessage(error) || '공유 링크를 생성할 수 없습니다.')
+  } finally {
+    creatingLink.value = false
+  }
+}
 
-const invitations = [
-  { name: 'Mina Park', email: 'mina@atelier.studio', permission: '편집', status: '수락 완료', sentAt: '오늘 08:20' },
-  { name: '김지훈', email: 'jihoon@vault.team', permission: '읽기 전용', status: '전송됨', sentAt: '어제 17:42' },
-  { name: 'Lukas', email: 'lukas@renderlab.co', permission: '댓글', status: '미확인', sentAt: '2일 전' }
-]
+const deleteLink = async (id: string) => {
+  if (!confirm('이 공유 링크를 비활성화할까요?')) return
+  try {
+    await requestFetch(`/api/share-links/${id}`, { method: 'DELETE' })
+    await refreshShareLinks()
+  } catch (error) {
+    alert(getErrorMessage(error) || '공유 링크를 삭제할 수 없습니다.')
+  }
+}
 
-const pinnedShare = [
-  { name: '런칭 보도자료', detail: 'PDF · 외부 열람', updated: '오늘' },
-  { name: '파트너 계약', detail: 'ZIP · 암호 보호', updated: '어제' },
-  { name: '스팟 라이트', detail: '비디오 · 만료 3일 후', updated: '3일 전' }
-]
+const copyLink = async (id: string) => {
+  const url = shareUrl(id)
+  if (!process.client) return
+  try {
+    await navigator.clipboard.writeText(url)
+    copyMessage.value = '링크가 복사되었습니다.'
+  } catch {
+    copyMessage.value = '클립보드에 복사할 수 없습니다.'
+  }
+  setTimeout(() => {
+    copyMessage.value = null
+  }, 2000)
+}
 
-const externalStatus = [
-  { label: '외부 열람 링크', value: '5개 활성' },
-  { label: '만료 예정', value: '2개 · 48시간 내' },
-  { label: '암호 보호', value: '4개 적용' }
-]
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)}${units[unit]}`
+}
+
+const formatRelative = (timestamp: number) => {
+  const diff = timestamp - Date.now()
+  const absoluteDays = Math.round(Math.abs(diff) / (24 * 60 * 60 * 1000))
+  if (diff < 0) {
+    return absoluteDays ? `${absoluteDays}일 지남` : '오늘 만료'
+  }
+  return absoluteDays ? `${absoluteDays}일 남음` : '곧 만료'
+}
+
+const pinnedShare = computed(() =>
+  [...shareLinks.value]
+    .sort((a, b) => b.fileSize - a.fileSize)
+    .slice(0, 3)
+    .map(link => ({
+      name: link.fileName,
+      detail: `${formatBytes(link.fileSize)} · 링크`,
+      updated: formatRelative(link.expiresAt)
+    }))
+)
+
+const externalStatus = computed(() => {
+  const total = shareLinks.value.length
+  const expiringSoon = shareLinks.value.filter(link => link.expiresAt - Date.now() < 3 * 24 * 60 * 60 * 1000).length
+  const protectedCount = shareLinks.value.filter(link => link.hasPassword).length
+  const totalAccess = shareLinks.value.reduce((sum, link) => sum + link.accessCount, 0)
+  return [
+    { label: '활성 링크', value: `${total}개` },
+    { label: '만료 예정 (3일)', value: `${expiringSoon}개` },
+    { label: '비밀번호 보호', value: `${protectedCount}개` },
+    { label: '총 다운로드', value: `${totalAccess}회` }
+  ]
+})
 </script>

@@ -75,6 +75,30 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_files_user ON files(userId, createdAt DESC);
   CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(userId, parentId);
   CREATE INDEX IF NOT EXISTS idx_chunks_file ON file_chunks(fileId, chunkIndex);
+  CREATE TABLE IF NOT EXISTS activity_logs (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL,
+    action TEXT NOT NULL,
+    targetId TEXT,
+    targetName TEXT,
+    metadata TEXT,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_user_created ON activity_logs(userId, createdAt DESC);
+  CREATE TABLE IF NOT EXISTS share_links (
+    id TEXT PRIMARY KEY,
+    fileId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    passwordHash TEXT,
+    expiresAt INTEGER NOT NULL,
+    createdAt INTEGER NOT NULL,
+    lastAccessedAt INTEGER,
+    accessCount INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (fileId) REFERENCES files(id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_share_links_user ON share_links(userId, createdAt DESC);
 `);
 
 ensureColumn('files', 'folderId', `ALTER TABLE files ADD COLUMN folderId TEXT REFERENCES folders(id) ON DELETE SET NULL`);

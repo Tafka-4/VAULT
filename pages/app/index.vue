@@ -6,8 +6,8 @@
       <div class="rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">스토리지 상태</p>
-            <h1 class="text-2xl font-extrabold">내 스토리지</h1>
+            <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">서버 스토리지 상태</p>
+            <h1 class="text-2xl font-extrabold">나의 스토리지</h1>
             <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
           <p class="text-xs text-paper-oklch/60">총 용량 {{ formatBytes(storageTotalBytes) }}</p>

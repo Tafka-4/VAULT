@@ -10,6 +10,7 @@ import {
 } from 'h3';
 import { requireAuth } from '~/server/utils/auth';
 import { getFileById, getFileChunks } from '~/server/services/fileService';
+import { recordActivityLog } from '~/server/services/activityLogService';
 import { kmsClient } from '~/server/utils/kmsClient';
 import { decryptWithKey } from '~/server/utils/aes';
 
@@ -63,6 +64,13 @@ export default defineEventHandler(async (event) => {
   });
 
   const stream = new PassThrough();
+  recordActivityLog({
+    userId: auth.user.id,
+    action: 'download',
+    targetId: file.id,
+    targetName: file.name,
+    metadata: { bytes: range.end - range.start + 1, range: range.partial },
+  });
   const streamKey = dataKey;
   (async () => {
     try {

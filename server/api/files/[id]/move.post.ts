@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '~/server/utils/auth';
 import { assertFolderOwnership } from '~/server/services/folderService';
 import { getFileById, moveFileToFolder } from '~/server/services/fileService';
+import { recordActivityLog } from '~/server/services/activityLogService';
 
 const schema = z.object({
   folderId: z.string().optional().nullable(),
@@ -33,5 +34,12 @@ export default defineEventHandler(async (event) => {
   if (!moved) {
     throw createError({ statusCode: 500, message: '파일을 이동할 수 없습니다.' });
   }
+  recordActivityLog({
+    userId: auth.user.id,
+    action: 'move',
+    targetId: id,
+    targetName: file.name,
+    metadata: { from: file.folderId, to: targetFolderId },
+  });
   return { data: { id, folderId: targetFolderId } };
 });

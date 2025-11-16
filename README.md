@@ -85,6 +85,7 @@ Share the printed value (format `Vault{...}`) with trusted teammates; they must 
 
 -   `server/utils/kmsClient.ts` performs the RSA handshake (`/session/init` + `/session/key-exchange`) and wraps `crypto/encrypt|decrypt` calls with automatic retries when sessions expire.
 -   `server/services/fileService.ts` derives a per-file AES-256 key, encrypts chunks locally, and only sends the small wrapped key blob to the KMS.
+-   `server/services/shareLinkService.ts` backs password-protected, expiring share links exposed via `/app/share` and the public `/share/:id` page.
 -   `server/api/files/[id]/stream.get.ts` supports range requests so `<audio>`/`<video>` tags can stream media directly from encrypted storage.
 -   Front-end state (auth, files, previews) lives in composables under `composables/` and `types/`.
 -   Route middleware (`middleware/auth.global.ts`) forces login before accessing `/app/**`.

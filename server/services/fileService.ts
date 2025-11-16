@@ -5,6 +5,7 @@ import { getAppConfig } from '../utils/config';
 import { chunkBuffer } from '../utils/chunk';
 import { kmsClient } from '../utils/kmsClient';
 import { encryptionPool } from '../utils/encryptionPool';
+import { recordActivityLog } from './activityLogService';
 
 const cfg = getAppConfig();
 
@@ -152,6 +153,13 @@ export async function saveEncryptedFile(params: {
     chunks: encryptedChunks.length,
     encryptMs: Number(encryptElapsed.toFixed(2)),
     totalMs: Date.now() - startedAt,
+  });
+  recordActivityLog({
+    userId,
+    action: 'upload',
+    targetId: record.id,
+    targetName: record.name,
+    metadata: { size: record.size, chunks: encryptedChunks.length },
   });
   return record;
 }
