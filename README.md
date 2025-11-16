@@ -93,3 +93,24 @@ Share the printed value (format `Vault{...}`) with trusted teammates; they must 
 
 - `npm run build` performs both client/server builds and type-checking (already executed successfully).
 - Upload/stream flows rely on the external KMS. Ensure it is running before testing those routes.
+
+### Upload diagnostics
+
+Run `npm run upload:test` to simulate the chunked upload flow from the command line. The script logs per-chunk transfer times/rates plus an overall average so you can compare Cloudflare tunnel performance versus direct LAN access.
+
+Configuration can be provided through CLI flags or environment variables:
+
+- `--host` / `UPLOAD_TEST_HOST` – base URL for the server (`http://localhost:3000` by default).
+- `--email` / `UPLOAD_TEST_EMAIL` and `--password` / `UPLOAD_TEST_PASSWORD` – credentials used for login (required).
+- `--size` / `UPLOAD_TEST_SIZE_MB` – total payload size in MiB (default `20`).
+- `--chunk` / `UPLOAD_TEST_CHUNK_MB` – plaintext chunk size in MiB (default `10`).
+- `--concurrency` / `UPLOAD_TEST_CONCURRENCY` – number of concurrent chunk workers (default `4`).
+- Optional `--name`, `--mime`, and `--folder` (or matching env vars) to adjust metadata.
+
+Example:
+
+```bash
+UPLOAD_TEST_EMAIL=user@example.com \
+UPLOAD_TEST_PASSWORD="sup3r-secret" \
+npm run upload:test -- --host https://vault.example.com --size 40 --chunk 8 --concurrency 12
+```
