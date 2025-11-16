@@ -174,28 +174,22 @@
             </p>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">
-            <div v-if="filteredFolders.length" class="mb-2 space-y-1 rounded-[1rem] bg-black/20 p-2">
-              <p class="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">폴더</p>
-              <div
+            <template v-if="filteredFolders.length">
+              <p class="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">폴더</p>
+              <FileRow
                 v-for="folder in filteredFolders"
                 :key="folder.id"
-                class="rounded-xl"
-                @dragover.prevent
-                @drop.prevent="handleFileDrop(folder.id)"
-              >
-                <FileRow
-                  icon="folder"
-                  :name="folder.name"
-                  :detail="folder.path"
-                  actionable
-                  :active="folderScope === folder.id"
-                  show-delete
-                  :deleting="Boolean(deleteFolderState[folder.id])"
-                  @action="selectFolderScope(folder.id)"
-                  @delete="deleteFolder(folder.id)"
-                />
-              </div>
-            </div>
+                icon="folder"
+                :name="folder.name"
+                :detail="folder.path"
+                actionable
+                :active="folderScope === folder.id"
+                show-delete
+                :deleting="Boolean(deleteFolderState[folder.id])"
+                @action="selectFolderScope(folder.id)"
+                @delete="deleteFolder(folder.id)"
+              />
+            </template>
             <template v-if="filteredFiles.length">
               <FileRow
                 v-for="file in filteredFiles"
