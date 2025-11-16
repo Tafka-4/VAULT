@@ -2,19 +2,19 @@
 
 Cloud storage dashboard powered by Nuxt 3 with end‑to‑end encryption backed by the personal KMS located at `../kms`. The app now includes:
 
-- Email/password auth with hashed credentials and HttpOnly sessions
-- Server APIs for listing, uploading, deleting, and streaming encrypted files
-- AES-256-GCM encryption via the external KMS (RSA key exchange & session tokens)
-- Chunked storage backed by SQLite + local blobs, stored under `server/.data`
-- Audio/video streaming from the encrypted store with HTTP range support
-- Dynamic dashboard, search, upload queue, and preview screens wired to live data
+-   Email/password auth with hashed credentials and HttpOnly sessions
+-   Server APIs for listing, uploading, deleting, and streaming encrypted files
+-   AES-256-GCM encryption via the external KMS (RSA key exchange & session tokens)
+-   Chunked storage backed by SQLite + local blobs, stored under `server/.data`
+-   Audio/video streaming from the encrypted store with HTTP range support
+-   Dynamic dashboard, search, upload queue, and preview screens wired to live data
 
 ## Getting Started
 
 ### Requirements
 
-- Node.js 18+
-- A base64url client token that matches the KMS whitelist
+-   Node.js 18+
+-   A base64url client token that matches the KMS whitelist
 
 ### Installation
 
@@ -47,8 +47,8 @@ Build and run both the VAULT app and the sibling KMS via Docker:
 docker compose up --build
 ```
 
-- The Nuxt server is exposed on `http://localhost:3000`.
-- Encrypted blobs, the SQLite DB, and session store live in the container at `/data`, which is mounted to the host path `/mnt/data`. Adjust the bind mount in `docker-compose.yml` if your host does not expose `/mnt/data`.
+-   The Nuxt server is exposed on `http://localhost:3000`.
+-   Encrypted blobs, the SQLite DB, and session store live in the container at `/data`, which is mounted to the host path `/mnt/data`. Adjust the bind mount in `docker-compose.yml` if your host does not expose `/mnt/data`.
 
 To stop and remove containers:
 
@@ -60,14 +60,14 @@ docker compose down
 
 See `.env.example` for full list. Key settings:
 
-- `KMS_BASE_URL` – URL where the KMS service runs.
-- `KMS_CLIENT_TOKEN` – base64url token used during RSA key exchange (must match KMS whitelist).
-- `STORAGE_DATA_DIR` – directory for the SQLite DB + encrypted blobs (default `server/.data`).
-- `STORAGE_CHUNK_SIZE` – plaintext bytes stored per encrypted chunk (default `10MB`). Chunks are encrypted locally with AES-256-GCM before being saved.
-- `STORAGE_SESSION_TTL_DAYS` – session lifetime.
-- `REGISTRATION_SEED` – shared secret that seeds the deterministic verification-code generator.
-- `CLOUDFLARE_TUNNEL_TOKEN` – required when using the Cloudflare tunnel compose file.
-- `KMS_CRYPTO_MAX_PLAINTEXT_BYTES` – (KMS repo) maximum plaintext payload the `/crypto/encrypt` endpoint accepts before returning `Plaintext too large`. Defaults to `10MB` and caps at `64MB`.
+-   `KMS_BASE_URL` – URL where the KMS service runs.
+-   `KMS_CLIENT_TOKEN` – base64url token used during RSA key exchange (must match KMS whitelist).
+-   `STORAGE_DATA_DIR` – directory for the SQLite DB + encrypted blobs (default `server/.data`).
+-   `STORAGE_CHUNK_SIZE` – plaintext bytes stored per encrypted chunk (default `10MB`). Chunks are encrypted locally with AES-256-GCM before being saved.
+-   `STORAGE_SESSION_TTL_DAYS` – session lifetime.
+-   `REGISTRATION_SEED` – shared secret that seeds the deterministic verification-code generator.
+-   `CLOUDFLARE_TUNNEL_TOKEN` – required when using the Cloudflare tunnel compose file.
+-   `KMS_CRYPTO_MAX_PLAINTEXT_BYTES` – (KMS repo) maximum plaintext payload the `/crypto/encrypt` endpoint accepts before returning `Plaintext too large`. Defaults to `10MB` and caps at `64MB`.
 
 ### Verification Codes
 
@@ -83,34 +83,19 @@ Share the printed value (format `Vault{...}`) with trusted teammates; they must 
 
 ## Implementation Notes
 
-- `server/utils/kmsClient.ts` performs the RSA handshake (`/session/init` + `/session/key-exchange`) and wraps `crypto/encrypt|decrypt` calls with automatic retries when sessions expire.
-- `server/services/fileService.ts` derives a per-file AES-256 key, encrypts chunks locally, and only sends the small wrapped key blob to the KMS.
-- `server/api/files/[id]/stream.get.ts` supports range requests so `<audio>`/`<video>` tags can stream media directly from encrypted storage.
-- Front-end state (auth, files, previews) lives in composables under `composables/` and `types/`.
-- Route middleware (`middleware/auth.global.ts`) forces login before accessing `/app/**`.
+-   `server/utils/kmsClient.ts` performs the RSA handshake (`/session/init` + `/session/key-exchange`) and wraps `crypto/encrypt|decrypt` calls with automatic retries when sessions expire.
+-   `server/services/fileService.ts` derives a per-file AES-256 key, encrypts chunks locally, and only sends the small wrapped key blob to the KMS.
+-   `server/api/files/[id]/stream.get.ts` supports range requests so `<audio>`/`<video>` tags can stream media directly from encrypted storage.
+-   Front-end state (auth, files, previews) lives in composables under `composables/` and `types/`.
+-   Route middleware (`middleware/auth.global.ts`) forces login before accessing `/app/**`.
 
 ## Testing
 
-- `npm run build` performs both client/server builds and type-checking (already executed successfully).
-- Upload/stream flows rely on the external KMS. Ensure it is running before testing those routes.
+-   `npm run build` performs both client/server builds and type-checking (already executed successfully).
+-   Upload/stream flows rely on the external KMS. Ensure it is running before testing those routes.
 
 ### Upload diagnostics
 
 Run `npm run upload:test` to simulate the chunked upload flow from the command line. The script logs per-chunk transfer times/rates plus an overall average so you can compare Cloudflare tunnel performance versus direct LAN access.
 
 Configuration can be provided through CLI flags or environment variables:
-
-- `--host` / `UPLOAD_TEST_HOST` – base URL for the server (`http://localhost:3000` by default).
-- `--email` / `UPLOAD_TEST_EMAIL` and `--password` / `UPLOAD_TEST_PASSWORD` – credentials used for login (required).
-- `--size` / `UPLOAD_TEST_SIZE_MB` – total payload size in MiB (default `20`).
-- `--chunk` / `UPLOAD_TEST_CHUNK_MB` – plaintext chunk size in MiB (default `10`).
-- `--concurrency` / `UPLOAD_TEST_CONCURRENCY` – number of concurrent chunk workers (default `4`).
-- Optional `--name`, `--mime`, and `--folder` (or matching env vars) to adjust metadata.
-
-Example:
-
-```bash
-UPLOAD_TEST_EMAIL=user@example.com \
-UPLOAD_TEST_PASSWORD="sup3r-secret" \
-npm run upload:test -- --host https://vault.example.com --size 40 --chunk 8 --concurrency 12
-```

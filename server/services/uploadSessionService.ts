@@ -4,7 +4,7 @@ import { join, resolve } from 'pathe';
 import { nanoid } from 'nanoid';
 import { randomBytes } from 'node:crypto';
 import { getAppConfig } from '../utils/config';
-import { persistEncryptedChunks } from './fileService';
+import { persistEncryptedChunks, getFileById } from './fileService';
 import { kmsClient } from '../utils/kmsClient';
 import { encryptionPool } from '../utils/encryptionPool';
 
@@ -25,6 +25,8 @@ export type UploadSession = {
   receivedChunks: number;
   receivedBytes: number;
   createdAt: number;
+  fileId?: string;
+  finalizedAt?: number;
 };
 
 function ensureRoot() {
@@ -150,6 +152,22 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
   if (session.userId !== userId) {
     throw new Error('세션에 접근할 수 없습니다.');
   }
+  if (!session.fileId) {
+    session.fileId = nanoid(21);
+    await saveSession(session);
+  }
+  const fileId = session.fileId;
+  const existingRecord = getFileById(fileId, session.userId);
+  if (existingRecord) {
+    console.info('[upload] session already finalized', {
+      sessionId,
+      fileId: existingRecord.id,
+      totalChunks: existingRecord.totalChunks,
+      totalBytes: existingRecord.size,
+    });
+    cleanupSession(sessionId);
+    return existingRecord;
+  }
   if (session.receivedChunks !== session.totalChunks) {
     throw new Error('모든 청크가 업로드되지 않았습니다.');
   }
@@ -186,16 +204,36 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
   const wrappedKey = await kmsClient.encrypt(dataKey);
   dataKey.fill(0);
   sessionKeys.delete(sessionId);
-  const record = await persistEncryptedChunks({
-    userId: session.userId,
-    name: session.name,
-    mimeType: session.mimeType,
-    size: session.size,
-    description: session.description,
-    folderId: session.folderId,
-    wrappedKey,
-    chunks: encryptedChunks,
-  });
+  let record;
+  try {
+    record = await persistEncryptedChunks({
+      userId: session.userId,
+      name: session.name,
+      mimeType: session.mimeType,
+      size: session.size,
+      description: session.description,
+      folderId: session.folderId,
+      wrappedKey,
+      chunks: encryptedChunks,
+      fileId,
+    });
+  } catch (error) {
+    const constraintCode = (error as { code?: string })?.code;
+    if (constraintCode && constraintCode.startsWith('SQLITE_CONSTRAINT')) {
+      const duplicateRecord = getFileById(fileId, session.userId);
+      if (duplicateRecord) {
+        console.warn('[upload] detected duplicate finalize, returning existing file', {
+          sessionId,
+          fileId: duplicateRecord.id,
+        });
+        cleanupSession(sessionId);
+        return duplicateRecord;
+      }
+    }
+    throw error;
+  }
+  session.finalizedAt = Date.now();
+  await saveSession(session);
   cleanupSession(sessionId);
   console.info('[upload] session finalized', {
     sessionId,

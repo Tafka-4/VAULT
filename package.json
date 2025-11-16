@@ -7,8 +7,7 @@
     "build": "nuxt build",
     "preview": "nuxt preview",
     "generate": "nuxt generate",
-    "code:show": "node scripts/showVerificationCode.mjs",
-    "upload:test": "node scripts/uploadTest.mjs"
+    "code:show": "node scripts/showVerificationCode.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

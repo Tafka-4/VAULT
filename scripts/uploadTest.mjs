@@ -9,6 +9,11 @@ const envFile = loadEnvFile();
 
 const config = buildConfig();
 
+if (config.insecure) {
+	process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+	console.warn("[upload-test] TLS verification disabled (--insecure)");
+}
+
 if (!config.email || !config.password) {
 	console.error(
 		"Missing credentials. Provide --email/--password or set UPLOAD_TEST_EMAIL/UPLOAD_TEST_PASSWORD."
@@ -75,11 +80,6 @@ async function main() {
 	}
 }
 
-main().catch((error) => {
-	console.error("Upload test failed:", error.message);
-	process.exit(1);
-});
-
 function buildConfig() {
 	const host = getOption("host", "UPLOAD_TEST_HOST", "http://localhost:3000");
 	const email = getOption("email", "UPLOAD_TEST_EMAIL");
@@ -119,6 +119,7 @@ function buildConfig() {
 		filename,
 		mimeType,
 		folderId,
+		insecure: parseBoolean(getOption("insecure", "UPLOAD_TEST_INSECURE", "false")),
 	};
 }
 
@@ -210,21 +211,26 @@ class ApiClient {
 			headerBag.set("content-type", "application/json");
 			payload = JSON.stringify(json);
 		}
-		const response = await fetch(url, {
+	let response;
+	try {
+		response = await fetch(url, {
 			method,
 			headers: headerBag,
 			body: payload,
 		});
-		this.captureCookies(response);
-		if (!response.ok) {
-			const text = await response.text().catch(() => "");
-			throw new Error(
-				`Request ${method} ${url.pathname} failed (${response.status} ${response.statusText}): ${text}`
-			);
-		}
-		const text = await response.text();
-		return text ? JSON.parse(text) : {};
+	} catch (error) {
+		throw createError(`Request ${method} ${url.pathname} failed`, error);
 	}
+	this.captureCookies(response);
+	if (!response.ok) {
+		const text = await response.text().catch(() => "");
+		throw createError(
+			`Request ${method} ${url.pathname} failed (${response.status} ${response.statusText}): ${text}`
+		);
+	}
+	const text = await response.text();
+	return text ? JSON.parse(text) : {};
+}
 
 	serializeCookies() {
 		return Array.from(this.cookies.entries())
@@ -298,6 +304,17 @@ function parseNumber(value, label) {
 	return num;
 }
 
+function parseBoolean(value) {
+	if (typeof value === "boolean") return value;
+	if (typeof value === "number") return value !== 0;
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		if (!normalized) return false;
+		return ["1", "true", "yes", "on"].includes(normalized);
+	}
+	return false;
+}
+
 function loadEnvFile() {
 	const envPath = path.resolve(process.cwd(), ".env");
 	if (!fs.existsSync(envPath)) {
@@ -343,3 +360,68 @@ function formatDuration(ms) {
 	}
 	return `${(ms / 1000).toFixed(2)} s`;
 }
+
+function createError(message, cause) {
+	if (cause) {
+		return new Error(message, { cause });
+	}
+	return new Error(message);
+}
+
+function formatError(error) {
+	if (error instanceof Error) {
+		const lines = [`Upload test failed: ${error.message}`];
+		const causes = collectCauses(error);
+		for (const [index, cause] of causes.entries()) {
+			const label = index === 0 ? "cause" : `cause ${index}`;
+			lines.push(`  ${label}: ${cause}`);
+		}
+		return lines.join("\n");
+	}
+	return `Upload test failed: ${String(error)}`;
+}
+
+function collectCauses(error) {
+	const results = [];
+	const seen = new Set();
+	let current = error;
+	while (current instanceof Error && current.cause && !seen.has(current.cause)) {
+		seen.add(current.cause);
+		const cause = current.cause;
+		if (cause instanceof Error) {
+			results.push(describeCause(cause));
+			current = cause;
+			continue;
+		}
+		if (cause && typeof cause === "object") {
+			const code = cause.code || cause.errno;
+			const message = cause.message || JSON.stringify(cause);
+			results.push([code, message].filter(Boolean).join(" - ") || String(cause));
+			break;
+		}
+		results.push(String(cause));
+		break;
+	}
+	return results;
+}
+
+function describeCause(error) {
+	const parts = [];
+	if ("code" in error && error.code) {
+		parts.push(error.code);
+	}
+	if ("errno" in error && error.errno && error.errno !== error.code) {
+		parts.push(`errno=${error.errno}`);
+	}
+	if (error.message) {
+		parts.push(error.message);
+	} else if (error.stack) {
+		parts.push(error.stack.split("\n")[0]);
+	}
+	return parts.filter(Boolean).join(" | ") || error.toString();
+}
+
+main().catch((error) => {
+	console.error(formatError(error));
+	process.exit(1);
+});
