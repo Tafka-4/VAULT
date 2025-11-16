@@ -1,12 +1,12 @@
 <template>
   <div
     :class="rowClasses"
-    :role="to ? 'link' : undefined"
-    :tabindex="to ? 0 : undefined"
+    :role="role"
+    :tabindex="isInteractive ? 0 : undefined"
     :draggable="draggable ? true : false"
-    @click="navigate"
-    @keydown.enter.prevent="navigate"
-    @keydown.space.prevent="navigate"
+    @click="handleClick"
+    @keydown.enter.prevent="handleKeydown"
+    @keydown.space.prevent="handleKeydown"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >
@@ -37,19 +37,52 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, type PropType } from 'vue'
 
-const props = defineProps<{ icon: IconName; name: string; detail: string; to?: string; showDelete?: boolean; deleting?: boolean; draggable?: boolean }>()
-const emit = defineEmits<{ (e: 'delete'): void; (e: 'dragstart'): void; (e: 'dragend'): void }>()
+const props = defineProps<{
+  icon: IconName
+  name: string
+  detail: string
+  to?: string
+  showDelete?: boolean
+  deleting?: boolean
+  draggable?: boolean
+  actionable?: boolean
+  active?: boolean
+}>()
+const emit = defineEmits<{ (e: 'delete'): void; (e: 'dragstart'): void; (e: 'dragend'): void; (e: 'action'): void }>()
+
+const isInteractive = computed(() => Boolean(props.to) || Boolean(props.actionable))
+const role = computed(() => {
+  if (props.to) return 'link'
+  if (props.actionable) return 'button'
+  return undefined
+})
 
 const rowClasses = computed(() => [
   'flex items-center justify-between border-b border-white/5 py-3 last:border-none transition-colors',
-  props.to
+  isInteractive.value
     ? 'cursor-pointer rounded-xl bg-transparent hover:bg-white/5 focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0 focus-visible:ring-offset-transparent focus-visible:shadow-vault'
-    : ''
+    : '',
+  props.active ? 'bg-white/10 text-white' : ''
 ])
 
 const navigate = () => {
   if (!props.to) return
   navigateTo(props.to)
+}
+
+const handleClick = () => {
+  if (props.to) {
+    navigate()
+    return
+  }
+  if (props.actionable) {
+    emit('action')
+  }
+}
+
+const handleKeydown = () => {
+  if (!isInteractive.value) return
+  handleClick()
 }
 
 const handleDragStart = (event: DragEvent) => {

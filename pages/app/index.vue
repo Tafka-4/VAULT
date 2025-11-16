@@ -9,44 +9,22 @@
             <h1 class="text-2xl font-extrabold">내 스토리지</h1>
             <p class="mt-1 text-sm text-paper-oklch/70">파일 {{ files.length }}개 · 저장소</p>
           </div>
-          <div id="search" class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <div class="flex grow items-center gap-2 rounded-2xl bg-black/35 px-4 py-3 ring-1 ring-surface">
-              <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-paper-oklch/50" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
-              </svg>
-              <input
-                type="search"
-                placeholder="계약서..."
-                v-model="search"
-                class="w-full bg-transparent text-sm text-paper-oklch placeholder:text-paper-oklch/45 focus:outline-none"
-              />
-            </div>
-            <button
-              class="tap-area rounded-2xl bg-white/10 px-4 py-3 text-sm text-paper-oklch/80 ring-1 ring-surface hover:bg-white/15"
-              @click="refresh"
-            >
-              새로고침
-            </button>
-          </div>
         </div>
-        <div class="mt-6 grid gap-4 sm:grid-cols-2">
-          <div class="rounded-2xl bg-black/35 px-4 py-4 text-sm ring-1 ring-surface">
-            <p class="text-xs uppercase text-paper-oklch/50 font-bold">총 저장 용량</p>
-            <p class="mt-2 text-2xl font-semibold">
-              <span class="text-emerald-200/90 font-bold">{{ usagePercent }}%</span> 사용
-            </p>
-            <div class="mt-3 h-2 rounded-full bg-white/10">
-              <div class="h-full rounded-full bg-white/70 transition-all" :style="{ width: usagePercent + '%' }" />
-            </div>
-            <p class="mt-2 text-xs text-paper-oklch/55">{{ formatBytes(totalUsageBytes) }} / {{ formatBytes(quotaBytes) }}</p>
+        <div class="mt-6 grid gap-4 sm:grid-cols-3">
+          <div class="rounded-2xl border border-emerald-300/30 bg-emerald-500/5 px-4 py-4 text-sm text-emerald-100">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-emerald-200/80">남은 공간</p>
+            <p class="mt-2 text-2xl font-bold">{{ formatBytes(remainingBytes) }}</p>
+            <p class="text-xs text-emerald-100/70">/mnt/data free</p>
           </div>
-          <div class="rounded-2xl bg-black/35 px-4 py-4 text-sm ring-1 ring-surface">
-            <p class="text-xs uppercase text-paper-oklch/50 font-bold">보안 상태</p>
-            <p class="mt-3 text-2xl font-semibold text-paper-oklch/60">
-              KMS 연동:
-              <span class="text-emerald-200/90 font-bold">실시간</span>
-            </p>
-            <p class="mt-2 text-xs text-paper-oklch/55">파일은 업로드 시 즉시 암호화되어 저장됩니다.</p>
+          <div class="rounded-2xl border border-amber-300/30 bg-amber-500/5 px-4 py-4 text-sm text-amber-100">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/80">사용 중</p>
+            <p class="mt-2 text-2xl font-bold">{{ formatBytes(usedCapacityBytes) }}</p>
+            <p class="text-xs text-amber-100/70">총 용량 {{ formatBytes(storageTotalBytes) }}</p>
+          </div>
+          <div class="rounded-2xl border border-sky-300/30 bg-sky-500/5 px-4 py-4 text-sm text-sky-100">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-sky-200/80">내 사용량 (/mnt/data)</p>
+            <p class="mt-2 text-2xl font-bold">{{ formatBytes(personalUsageBytes) }}</p>
+            <p class="text-xs text-sky-100/70">{{ personalUsagePercent }}% of total</p>
           </div>
         </div>
       </div>
@@ -141,126 +119,115 @@
               새 폴더
             </button>
           </div>
-          <div class="mt-4 space-y-2">
-            <button
-              type="button"
-              class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-              :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
-              @click="selectFolderScope('all')"
-              @dragover.prevent
-              @drop.prevent="handleFileDrop(null)"
-            >
-              전체 파일
-            </button>
-            <button
-              type="button"
-              class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
-              :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
-              @click="selectFolderScope('root')"
-              @dragover.prevent
-              @drop.prevent="handleFileDrop(null)"
-            >
-              루트 폴더
-            </button>
-            <div v-if="folders.length" class="space-y-1">
-              <button
-                v-for="folder in folders"
-                :key="folder.id"
-                type="button"
-                class="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm transition"
-                :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
-                @click="selectFolderScope(folder.id)"
-                @dragover.prevent
-                @drop.prevent="handleFileDrop(folder.id)"
-              >
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium truncate">{{ folder.name }}</p>
-                  <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
-                </div>
-                <span
-                  class="tap-area shrink-0 rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10"
-                  :class="[
-                    folderScope === folder.id ? 'hover:bg-black/5' : '',
-                    deleteFolderState[folder.id] ? 'pointer-events-none opacity-40' : ''
-                  ]"
-                  role="button"
-                  :aria-disabled="Boolean(deleteFolderState[folder.id])"
-                  @click.stop="deleteFolder(folder.id)"
+          <div class="mt-4 space-y-6">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">폴더 목록</p>
+              <div v-if="scopedFolders.length" class="mt-2 space-y-1">
+                <button
+                  v-for="folder in scopedFolders"
+                  :key="folder.id"
+                  type="button"
+                  class="flex w-full items-center gap-3 rounded-xl px-4 py-2 text-left text-sm transition"
+                  :class="folderScope === folder.id ? 'bg-white text-black font-semibold' : 'bg-black/20 text-paper-oklch/70 hover:bg-black/10'"
+                  @click="selectFolderScope(folder.id)"
+                  @dragover.prevent
+                  @drop.prevent="handleFileDrop(folder.id)"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
-                  </svg>
-                </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium truncate">{{ folder.name }}</p>
+                    <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
+                  </div>
+                  <span
+                    class="tap-area shrink-0 rounded-full p-2 text-xs text-red-200/80 hover:bg-white/10"
+                    :class="[
+                      folderScope === folder.id ? 'hover:bg-black/5' : '',
+                      deleteFolderState[folder.id] ? 'pointer-events-none opacity-40' : ''
+                    ]"
+                    role="button"
+                    :aria-disabled="Boolean(deleteFolderState[folder.id])"
+                    @click.stop="deleteFolder(folder.id)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+              <p v-else class="mt-2 text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
+            </div>
+
+            <div class="space-y-2 border-t border-white/10 pt-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-paper-oklch/45">전체 보기</p>
+              <button
+                type="button"
+                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === 'root' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+                @click="selectFolderScope('root')"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(null)"
+              >
+                루트 폴더
+              </button>
+              <button
+                type="button"
+                class="w-full rounded-xl px-4 py-2 text-left text-sm transition"
+                :class="folderScope === 'all' ? 'bg-white text-black font-semibold' : 'bg-black/30 text-paper-oklch/70 hover:bg-black/20'"
+                @click="selectFolderScope('all')"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop(null)"
+              >
+                전체 파일
               </button>
             </div>
-            <p v-else class="text-xs text-paper-oklch/55">아직 생성된 폴더가 없습니다.</p>
           </div>
         </aside>
         <div class="space-y-4 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
+          <div class="rounded-[1.25rem] bg-black/20 p-3 ring-1 ring-surface">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div class="flex grow items-center gap-2 rounded-xl bg-black/40 px-4 py-2 text-sm text-paper-oklch ring-1 ring-surface">
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-paper-oklch/50" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
+                </svg>
+                <input
+                  v-model="search"
+                  type="search"
+                  placeholder="파일 검색..."
+                  class="w-full bg-transparent text-sm text-paper-oklch placeholder:text-paper-oklch/45 focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                class="tap-area rounded-xl bg-white/10 px-4 py-2 text-xs text-paper-oklch/80 ring-1 ring-surface hover:bg-white/15"
+                @click="refresh"
+              >
+                새로고침
+              </button>
+            </div>
+          </div>
           <div class="flex items-center justify-between">
             <div>
               <h2 class="text-lg font-semibold">파일</h2>
               <p class="text-xs text-paper-oklch/55">{{ totalEntriesCount }}개 표시</p>
             </div>
-            <button
-              type="button"
-              class="tap-area rounded-full bg-white/10 px-4 py-2 text-xs text-paper-oklch/70 ring-1 ring-surface hover:bg-white/15"
-              @click="refresh"
-            >
-              새로고침
-            </button>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">
-            <template v-if="totalEntriesCount">
-              <div v-if="filteredFolders.length" class="mb-2 space-y-1 rounded-[1rem] bg-black/20 p-2">
-                <p class="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">폴더</p>
-                <button
-                  v-for="folder in filteredFolders"
-                  :key="`folder-${folder.id}`"
-                  type="button"
-                  class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm text-paper-oklch/80 transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-                  :class="folderScope === folder.id ? 'bg-white/10 text-white' : ''"
-                  @click="selectFolderScope(folder.id)"
-                  @dragover.prevent
-                  @drop.prevent="handleFileDrop(folder.id)"
-                >
-                  <div class="flex items-center gap-3">
-                    <div class="grid size-9 place-items-center rounded-xl bg-white/10 text-white ring-1 ring-surface">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
-                      </svg>
-                    </div>
-                    <div class="min-w-0">
-                      <p class="truncate font-medium">{{ folder.name }}</p>
-                      <p class="text-xs text-paper-oklch/55 truncate">{{ folder.path }}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 text-xs text-paper-oklch/60">
-                    <span>열기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-              </div>
-              <template v-if="filteredFiles.length">
-                <FileRow
-                  v-for="file in filteredFiles"
-                  :key="file.id"
-                  :icon="iconForFile(file)"
-                  :name="file.name"
-                  :detail="detailForFile(file)"
-                  :to="`/app/file-preview/${file.id}`"
-                  show-delete
-                  :deleting="Boolean(deleteState[file.id])"
-                  draggable
-                  @dragstart="handleFileDragStart(file.id)"
-                  @dragend="handleFileDragEnd"
-                  @delete="deleteFile(file.id)"
-                />
-              </template>
+            <template v-if="filteredFiles.length">
+              <FileRow
+                v-for="file in filteredFiles"
+                :key="file.id"
+                :icon="iconForFile(file)"
+                :name="file.name"
+                :detail="detailForFile(file)"
+                :to="`/app/file-preview/${file.id}`"
+                show-delete
+                :deleting="Boolean(deleteState[file.id])"
+                draggable
+                @dragstart="handleFileDragStart(file.id)"
+                @dragend="handleFileDragEnd"
+                @delete="deleteFile(file.id)"
+              />
             </template>
-            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이나 폴더가 없습니다.</p>
+            <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이 없습니다.</p>
           </div>
         </div>
       </section>
@@ -334,6 +301,7 @@ definePageMeta({ layout: 'app' })
 
 type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
+type StorageStatsResponse = { data: { totalBytes: number; usedBytes: number; freeBytes: number; userBytes: number } }
 
 const search = ref('')
 const quotaBytes = 512 * 1024 * 1024 * 1024 // 512GB
@@ -348,18 +316,28 @@ const { data: foldersData, refresh: refreshFolders } = await useFetch<FoldersRes
   key: 'folders-dashboard'
 })
 
+const { data: storageStats } = await useFetch<StorageStatsResponse>('/api/storage/stats', {
+  key: 'storage-stats'
+})
+
 const files = computed(() => data.value?.data ?? [])
 const folders = computed(() => foldersData.value?.data ?? [])
 
-const scopedFiles = computed(() => {
-  if (folderScope.value === 'all') return files.value
-  if (folderScope.value === 'root') return files.value.filter(file => !file.folderId)
-  return files.value.filter(file => file.folderId === folderScope.value)
+const folderScopeFilter = computed(() => {
+  if (folderScope.value === 'all') return undefined
+  if (folderScope.value === 'root') return null
+  return folderScope.value
 })
 
-const scopedFolders = computed(() => {
-  const targetParent = folderScope.value === 'root' || folderScope.value === 'all' ? null : folderScope.value
-  return folders.value.filter(folder => folder.parentId === targetParent)
+const folderParentFilter = computed(() => (folderScope.value === 'root' || folderScope.value === 'all' ? null : folderScope.value))
+
+const scopedFolders = computed(() => folders.value.filter(folder => folder.parentId === folderParentFilter.value))
+
+const scopedFiles = computed(() => {
+  const target = folderScopeFilter.value
+  if (target === undefined) return files.value
+  if (target === null) return files.value.filter(file => file.folderId == null)
+  return files.value.filter(file => file.folderId === target)
 })
 
 const filteredFiles = computed(() => {
@@ -369,13 +347,7 @@ const filteredFiles = computed(() => {
   return scopeList.filter(file => file.name.toLowerCase().includes(query))
 })
 
-const filteredFolders = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  if (!query) return scopedFolders.value
-  return scopedFolders.value.filter(folder => folder.name.toLowerCase().includes(query) || folder.path.toLowerCase().includes(query))
-})
-
-const totalEntriesCount = computed(() => filteredFolders.value.length + filteredFiles.value.length)
+const totalEntriesCount = computed(() => filteredFiles.value.length)
 
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 
@@ -504,14 +476,31 @@ const selectFolderScope = (scope: 'all' | 'root' | string) => {
   folderScope.value = scope
 }
 
+const storageTotalBytes = computed(() => storageStats.value?.data.totalBytes ?? quotaBytes)
+const remainingBytes = computed(() => {
+  if (storageStats.value?.data) {
+    return Math.max(storageStats.value.data.freeBytes, 0)
+  }
+  return Math.max(quotaBytes - totalUsageBytes.value, 0)
+})
+const usedCapacityBytes = computed(() => {
+  if (storageStats.value?.data) {
+    return Math.max(storageStats.value.data.usedBytes, 0)
+  }
+  return totalUsageBytes.value
+})
+const personalUsageBytes = computed(() => storageStats.value?.data.userBytes ?? totalUsageBytes.value)
+const personalUsagePercent = computed(() => {
+  const total = storageTotalBytes.value || 1
+  return Math.min(100, Math.round((personalUsageBytes.value / total) * 100))
+})
+
 const pinnedGridColsClass = computed(() => {
   if (pinnedFiles.value.length === 0) return 'grid-cols-1'
   return pinnedFiles.value.length % 2 === 1 ? 'sm:grid-cols-1' : 'sm:grid-cols-2'
 })
 
 const totalUsageBytes = computed(() => files.value.reduce((sum, file) => sum + file.size, 0))
-const usagePercent = computed(() => Math.min(100, Math.round((totalUsageBytes.value / quotaBytes) * 100)))
-
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']

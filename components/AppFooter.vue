@@ -1,6 +1,6 @@
 <template>
   <nav class="sticky bottom-0 z-40 border-t border-white/10 bg-black/40 backdrop-blur">
-    <div class="mx-auto grid max-w-3xl grid-cols-4">
+    <div class="mx-auto grid max-w-3xl grid-cols-3">
       <NuxtLink
         v-for="item in navItems"
         :key="item.label"
@@ -53,12 +53,6 @@ const baseItems: NavItem[] = [
     icon: '🤝',
     to: '/app/share',
     match: current => current.path === '/app/share' || current.path === '/app/share-settings'
-  },
-  {
-    label: '검색',
-    icon: '🔍',
-    to: '/app/search',
-    match: current => current.path === '/app/search'
   }
 ]
 

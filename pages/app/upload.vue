@@ -108,11 +108,8 @@
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
             <div class="flex items-center justify-between">
               <h2 class="text-lg font-bold text-paper-oklch/55">최근 업로드</h2>
-              <NuxtLink
-                to="/app/search?preset=recent"
-                class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80"
-              >
-                목록 열기
+              <NuxtLink to="/app" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">
+                라이브러리로 이동
               </NuxtLink>
             </div>
             <div v-if="recentUploads.length" class="space-y-2 text-sm text-paper-oklch/70">
@@ -394,14 +391,22 @@ const uploadLargeFile = async (item: UploadItem) => {
   item.sessionId = uploadId
   const startedAt = performance.now()
   const chunkProgress = new Array(totalChunks).fill(0)
+  let lastLoadedBytes = 0
+  let lastSampleAt = startedAt
   const updateOverallProgress = () => {
     const totalLoaded = chunkProgress.reduce((sum, value) => sum + value, 0)
     const denominator = Math.max(item.size, 1)
     const percent = Math.min(99, Math.round((totalLoaded / denominator) * 100))
     item.progress = percent
-    const elapsed = Math.max(performance.now() - startedAt, 1)
-    const bytesPerSecond = totalLoaded / (elapsed / 1000)
+    const now = performance.now()
+    const deltaBytes = Math.max(totalLoaded - lastLoadedBytes, 0)
+    const deltaMs = Math.max(now - lastSampleAt, 1)
+    const instantaneousRate = deltaBytes / (deltaMs / 1000)
+    const averageRate = totalLoaded / (Math.max(now - startedAt, 1) / 1000)
+    const bytesPerSecond = instantaneousRate > 0 ? instantaneousRate : averageRate
     item.speed = formatRate(bytesPerSecond)
+    lastLoadedBytes = totalLoaded
+    lastSampleAt = now
   }
 
   const workerCount = Math.min(CHUNK_UPLOAD_CONCURRENCY, Math.max(totalChunks, 1))
