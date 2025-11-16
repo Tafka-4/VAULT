@@ -18,6 +18,7 @@ export async function handleShareStream(event, options: ResolveOptions) {
 
   const { password } = options.source === 'body' ? await parseBody(event) : parseQuery(event);
   const shareLink = assertActiveShareLink(id);
+  const query = getQuery(event);
 
   if (shareLink.hasPassword) {
     if (!password || !shareLink.passwordHash) {
@@ -59,9 +60,11 @@ export async function handleShareStream(event, options: ResolveOptions) {
     });
   }
 
+  const inlinePreview = query.preview === '1';
   setHeader(event, 'Content-Type', file.mimeType || 'application/octet-stream');
   setHeader(event, 'Content-Length', String(file.size));
-  setHeader(event, 'Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+  const disposition = inlinePreview ? 'inline' : 'attachment';
+  setHeader(event, 'Content-Disposition', `${disposition}; filename="${encodeURIComponent(file.name)}"`);
   setHeader(event, 'Cache-Control', 'no-store');
 
   const stream = new PassThrough();

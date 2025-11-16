@@ -8,9 +8,15 @@
         <p class="text-sm text-white/65">{{ formatBytes(metadata.fileSize) }}</p>
         <p v-if="metadata.folderPath" class="text-xs text-white/45">위치: {{ metadata.folderPath }}</p>
       </div>
-      <div class="rounded-[1.25rem] bg-black/40 p-4 text-sm text-white/70">
-        <p>만료일: <span class="font-semibold">{{ formatExpiry(metadata.expiresAt) }}</span></p>
-        <p>비밀번호 보호: <span class="font-semibold">{{ metadata.hasPassword ? '예' : '아니요' }}</span></p>
+      <div class="rounded-[1.25rem] bg-black/40 p-4 text-sm text-white/70 space-y-1">
+        <p>
+          만료일:
+          <span class="font-semibold">{{ expiryLabel }}</span>
+        </p>
+        <p>
+          비밀번호 보호:
+          <span class="font-semibold">{{ metadata.hasPassword ? '예' : '아니요' }}</span>
+        </p>
       </div>
       <div v-if="canPreview" class="rounded-[1.25rem] bg-black/30 p-4">
         <component :is="previewComponent" v-if="previewComponent" :src="previewSrc" controls preload="metadata" class="w-full rounded-xl bg-black">
@@ -20,21 +26,33 @@
         <p v-else class="text-center text-sm text-white/60">이 파일 형식은 미리보기를 지원하지 않습니다.</p>
       </div>
       <div class="space-y-4">
-        <p class="text-sm text-white/70">공유자가 설정한 비밀번호를 입력하면 파일을 다운로드할 수 있습니다.</p>
-        <input
-          v-if="metadata.hasPassword"
-          v-model="password"
-          type="password"
-          placeholder="비밀번호"
-          class="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:border-white/40 focus:outline-none"
-        />
-        <a
-          :href="downloadHref"
-          download
-          class="block w-full rounded-full bg-white/90 px-4 py-3 text-center text-sm font-semibold text-black transition hover:bg-white"
+        <p class="text-sm text-white/70">공유자가 설정한 비밀번호를 입력하면 파일을 다운로드하거나 스트리밍할 수 있습니다.</p>
+        <div v-if="metadata.hasPassword" class="space-y-3">
+          <input
+            v-model="password"
+            type="password"
+            placeholder="비밀번호"
+            class="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm focus:border-white/40 focus:outline-none"
+          />
+          <button
+            type="button"
+            class="w-full rounded-full bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:opacity-50"
+            :disabled="verifying || !password"
+            @click="verifyPassword"
+          >
+            {{ verifying ? '확인 중...' : passwordVerified ? '확인 완료' : '비밀번호 확인' }}
+          </button>
+          <p v-if="verifyMessage" class="text-center text-xs text-emerald-300/80">{{ verifyMessage }}</p>
+          <p v-if="verifyError" class="text-center text-xs text-rose-300/80">{{ verifyError }}</p>
+        </div>
+        <button
+          type="button"
+          class="block w-full rounded-full bg-white/90 px-4 py-3 text-center text-sm font-semibold text-black transition hover:bg-white disabled:opacity-40"
+          :disabled="metadata.hasPassword && !passwordVerified"
+          @click="downloadFile"
         >
           다운로드
-        </a>
+        </button>
       </div>
     </div>
     <div v-else-if="pending" class="text-sm text-white/70">링크 정보를 불러오는 중입니다...</div>
@@ -58,10 +76,35 @@ const { data, pending } = await useFetch<{ data: PublicShareMetadata }>(`/api/pu
 
 const metadata = computed(() => data.value?.data)
 const password = ref('')
+const passwordVerified = ref(false)
+const verifying = ref(false)
+const verifyMessage = ref('')
+const verifyError = ref('')
 const previewNonce = ref(0)
 
+watch(
+  metadata,
+  (next) => {
+    password.value = ''
+    passwordVerified.value = !next?.hasPassword
+    verifyMessage.value = ''
+    verifyError.value = ''
+    previewNonce.value += 1
+  },
+  { immediate: true }
+)
+
+watch(password, () => {
+  if (metadata.value?.hasPassword) {
+    passwordVerified.value = false
+    verifyMessage.value = ''
+    verifyError.value = ''
+  }
+  previewNonce.value += 1
+})
+
 const downloadHref = computed(() => {
-  if (!metadata.value) return '#'
+  if (!metadata.value || (metadata.value.hasPassword && !passwordVerified.value)) return '#'
   const base = `/api/public/share/${shareId.value}/stream`
   const search = new URLSearchParams()
   if (metadata.value.hasPassword && password.value) {
@@ -72,7 +115,7 @@ const downloadHref = computed(() => {
 })
 
 const previewSrc = computed(() => {
-  if (!metadata.value) return ''
+  if (!metadata.value || (metadata.value.hasPassword && !passwordVerified.value)) return ''
   const base = `/api/public/share/${shareId.value}/stream`
   const params = new URLSearchParams()
   if (metadata.value.hasPassword && password.value) {
@@ -93,11 +136,65 @@ const previewComponent = computed(() => {
   return null
 })
 
-const canPreview = computed(() => !metadata.value?.hasPassword || Boolean(password.value))
+const canPreview = computed(() => !metadata.value?.hasPassword || passwordVerified.value)
 
-watch(password, () => {
-  previewNonce.value += 1
+const expiryLabel = computed(() => {
+  if (!metadata.value) return ''
+  const date = new Date(metadata.value.expiresAt)
+  const formatted = date.toLocaleString('ko-KR', { dateStyle: 'long', timeStyle: 'short' })
+  return `${formatted} (${formatExpiry(metadata.value.expiresAt)})`
 })
+
+const verifyPassword = async () => {
+  if (!process.client) return
+  if (!metadata.value?.hasPassword) {
+    passwordVerified.value = true
+    return
+  }
+  if (!password.value) {
+    verifyError.value = '비밀번호를 입력하세요.'
+    return
+  }
+  verifying.value = true
+  verifyError.value = ''
+  verifyMessage.value = ''
+  try {
+    const res = await fetch(`/api/public/share/${shareId.value}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password.value })
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      try {
+        const parsed = JSON.parse(text)
+        verifyError.value = parsed?.error?.message || text || '비밀번호 확인에 실패했습니다.'
+      } catch {
+        verifyError.value = text || '비밀번호 확인에 실패했습니다.'
+      }
+      return
+    }
+    passwordVerified.value = true
+    verifyMessage.value = '비밀번호가 확인되었습니다.'
+    previewNonce.value += 1
+  } catch (error) {
+    verifyError.value = (error as Error).message
+  } finally {
+    verifying.value = false
+  }
+}
+
+const downloadFile = () => {
+  if (!process.client) return
+  if (!metadata.value) return
+  if (metadata.value.hasPassword && !passwordVerified.value) return
+  const link = document.createElement('a')
+  link.href = downloadHref.value
+  link.download = metadata.value.fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 const formatBytes = (bytes: number) => {
   if (!bytes) return '0B'

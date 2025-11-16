@@ -17,17 +17,17 @@
             <div class="h-2 overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
               <div class="relative h-full w-full">
                 <span
-                  class="absolute inset-y-0 left-0 h-full bg-amber-300/80 transition-all"
+                  class="absolute inset-y-0 left-0 h-full bg-amber-200/70 transition-all"
                   :style="{ width: usedCapacityPercent + '%' }"
                   aria-label="사용 중"
                 ></span>
                 <span
-                  class="absolute inset-y-0 left-0 h-full bg-sky-400/90 transition-all"
+                  class="absolute inset-y-0 left-0 h-full bg-sky-300/80 transition-all"
                   :style="{ width: personalUsagePercent + '%' }"
                   aria-label="내 사용량"
                 ></span>
                 <span
-                  class="absolute inset-y-0 right-0 h-full bg-emerald-400/80 transition-all"
+                  class="absolute inset-y-0 right-0 h-full bg-emerald-300/70 transition-all"
                   :style="{ width: remainingPercent + '%' }"
                   aria-label="남은 공간"
                 ></span>
@@ -208,7 +208,7 @@
                 show-delete
                 :deleting="Boolean(deleteFolderState[folder.id])"
                 @action="selectFolderScope(folder.id)"
-                @delete="deleteFolder(folder.id)"
+                @delete="requestDeleteFolder(folder)"
               />
             </template>
             <template v-if="filteredFiles.length">
@@ -224,7 +224,7 @@
                 draggable
                 @dragstart="handleFileDragStart(file.id)"
                 @dragend="handleFileDragEnd"
-                @delete="deleteFile(file.id)"
+                @delete="requestDeleteFile(file)"
               />
             </template>
             <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이 없습니다.</p>
@@ -289,10 +289,42 @@
       </div>
     </div>
   </transition>
+
+  <transition name="fade">
+    <div v-if="confirmDialog.open" class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur">
+      <div class="w-full max-w-md rounded-3xl bg-[#0f0f11] p-6 text-paper-oklch ring-1 ring-white/10">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">삭제 확인</p>
+            <h3 class="text-lg font-semibold">이 작업을 계속할까요?</h3>
+          </div>
+          <button type="button" class="tap-area rounded-full p-2 hover:bg-white/10" @click="closeConfirmDialog" :disabled="confirmDialog.submitting">
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <p class="mt-4 text-sm text-paper-oklch/70">{{ confirmMessage }}</p>
+        <div class="mt-6 flex items-center justify-end gap-3 text-sm">
+          <button type="button" class="tap-area rounded-full px-4 py-2 text-paper-oklch/70 hover:bg-white/10" @click="closeConfirmDialog" :disabled="confirmDialog.submitting">
+            취소
+          </button>
+          <button
+            type="button"
+            class="tap-area rounded-full bg-rose-500/90 px-4 py-2 font-semibold text-white hover:bg-rose-500 disabled:opacity-60"
+            :disabled="confirmDialog.submitting"
+            @click="confirmDeletion"
+          >
+            {{ confirmDialog.submitting ? '삭제 중...' : '삭제' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import type { StoredFile, StoredFolder } from '~/types/storage'
 import { getErrorMessage } from '~/utils/errorMessage'
 
@@ -378,6 +410,19 @@ const currentPathLabel = computed(() => {
 
 const deleteState = ref<Record<string, boolean>>({})
 const deleteFolderState = ref<Record<string, boolean>>({})
+const confirmDialog = reactive({
+  open: false,
+  type: null as 'file' | 'folder' | null,
+  targetId: '',
+  targetName: '',
+  submitting: false
+})
+const confirmMessage = computed(() => {
+  if (!confirmDialog.type) return ''
+  return confirmDialog.type === 'file'
+    ? `"${confirmDialog.targetName}" 파일을 삭제하시겠습니까?`
+    : `"${confirmDialog.targetName}" 폴더를 삭제하시겠습니까? 폴더의 파일은 루트로 이동합니다.`
+})
 const draggingFileId = ref<string | null>(null)
 
 const setDeleteState = (id: string, value: boolean) => {
@@ -390,7 +435,6 @@ const setDeleteState = (id: string, value: boolean) => {
 }
 
 const deleteFile = async (fileId: string) => {
-  if (!confirm('이 파일을 삭제하시겠습니까?')) return
   if (deleteState.value[fileId]) return
   setDeleteState(fileId, true)
   try {
@@ -416,7 +460,6 @@ const moveFile = async (fileId: string, folderId: string | null) => {
 }
 
 const deleteFolder = async (folderId: string) => {
-  if (!confirm('폴더를 삭제하시겠습니까? 폴더의 파일은 루트로 이동합니다.')) return
   if (deleteFolderState.value[folderId]) return
   deleteFolderState.value = { ...deleteFolderState.value, [folderId]: true }
   try {
@@ -445,6 +488,45 @@ const handleFileDrop = async (folderId: string | null) => {
   if (!draggingFileId.value) return
   await moveFile(draggingFileId.value, folderId)
   draggingFileId.value = null
+}
+
+const requestDeleteFile = (file: StoredFile) => {
+  confirmDialog.open = true
+  confirmDialog.type = 'file'
+  confirmDialog.targetId = file.id
+  confirmDialog.targetName = file.name
+}
+
+const requestDeleteFolder = (folder: StoredFolder) => {
+  confirmDialog.open = true
+  confirmDialog.type = 'folder'
+  confirmDialog.targetId = folder.id
+  confirmDialog.targetName = folder.name
+}
+
+const closeConfirmDialog = () => {
+  if (confirmDialog.submitting) return
+  confirmDialog.open = false
+  confirmDialog.type = null
+  confirmDialog.targetId = ''
+  confirmDialog.targetName = ''
+}
+
+const confirmDeletion = async () => {
+  if (!confirmDialog.type || !confirmDialog.targetId) return
+  confirmDialog.submitting = true
+  try {
+    if (confirmDialog.type === 'file') {
+      await deleteFile(confirmDialog.targetId)
+    } else {
+      await deleteFolder(confirmDialog.targetId)
+    }
+    closeConfirmDialog()
+  } catch (error) {
+    alert(getErrorMessage(error) || '삭제에 실패했습니다.')
+  } finally {
+    confirmDialog.submitting = false
+  }
 }
 
 const showCreateFolderModal = ref(false)
