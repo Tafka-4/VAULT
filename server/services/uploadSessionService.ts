@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { promises as fsp } from 'node:fs';
 import { join, resolve } from 'pathe';
 import { nanoid } from 'nanoid';
 import { randomBytes } from 'node:crypto';
@@ -111,7 +112,7 @@ export async function appendUploadChunk(options: {
   }
   const encrypted = await encryptionPool.encrypt(options.data, dataKey);
   const payload = Buffer.concat([encrypted.iv, encrypted.tag, encrypted.ciphertext]);
-  fs.writeFileSync(dest, payload);
+  await fsp.writeFile(dest, payload);
   session.receivedChunks += 1;
   session.receivedBytes += options.data.length;
   saveSession(session);
