@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import db from '../utils/db';
 
-type ShareLinkRow = {
+export type ShareLinkRow = {
   id: string;
   fileId: string;
   userId: string;

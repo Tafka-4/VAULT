@@ -5,6 +5,7 @@ import { getAppConfig } from '../utils/config';
 import { chunkBuffer } from '../utils/chunk';
 import { kmsClient } from '../utils/kmsClient';
 import { encryptionPool } from '../utils/encryptionPool';
+import { getActiveKmsKey } from '../utils/kmsKeyManager';
 import { recordActivityLog } from './activityLogService';
 
 const cfg = getAppConfig();
@@ -20,6 +21,8 @@ export type FileRecord = {
   wrappedKeyIv?: Buffer | null;
   wrappedKeyTag?: Buffer | null;
   wrappedKeyCiphertext?: Buffer | null;
+  wrappedKeyId?: string | null;
+  wrappedKeyVersion?: number | null;
   totalChunks: number;
   createdAt: number;
   updatedAt: number;
@@ -38,13 +41,13 @@ export type FileChunkRecord = {
 
 const FILE_COLUMNS = `
   id, userId, name, mimeType, size, description, folderId,
-  wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext,
+  wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, wrappedKeyId, wrappedKeyVersion,
   totalChunks, createdAt, updatedAt
 `;
 
 const insertFileStmt = db.prepare(`
-  INSERT INTO files (id, userId, name, mimeType, size, description, folderId, wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, totalChunks, createdAt, updatedAt)
-  VALUES (@id, @userId, @name, @mimeType, @size, @description, @folderId, @wrappedKeyIv, @wrappedKeyTag, @wrappedKeyCiphertext, @totalChunks, @createdAt, @updatedAt)
+  INSERT INTO files (id, userId, name, mimeType, size, description, folderId, wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, wrappedKeyId, wrappedKeyVersion, totalChunks, createdAt, updatedAt)
+  VALUES (@id, @userId, @name, @mimeType, @size, @description, @folderId, @wrappedKeyIv, @wrappedKeyTag, @wrappedKeyCiphertext, @wrappedKeyId, @wrappedKeyVersion, @totalChunks, @createdAt, @updatedAt)
 `);
 
 const insertChunkStmt = db.prepare(`
@@ -131,7 +134,8 @@ export async function saveEncryptedFile(params: {
 
   const chunks = chunkBuffer(buffer, cfg.chunkSize);
   const dataKey = randomBytes(32);
-  const wrappedKey = await kmsClient.encrypt(dataKey);
+  const kmsKey = await getActiveKmsKey();
+  const wrappedKey = await kmsClient.wrapWithKey({ keyId: kmsKey.keyId, version: kmsKey.version, plaintext: dataKey });
   const encryptStart = performance.now();
   const encryptedChunks = await encryptChunksWithDataKey(chunks, dataKey);
   const encryptElapsed = performance.now() - encryptStart;
@@ -145,6 +149,8 @@ export async function saveEncryptedFile(params: {
     description,
     folderId,
     wrappedKey,
+    wrappedKeyId: kmsKey.keyId,
+    wrappedKeyVersion: kmsKey.version,
     chunks: encryptedChunks,
   });
   console.info('[upload] file persisted', {
@@ -204,10 +210,10 @@ export function moveFileToFolder(params: { fileId: string; userId: string; folde
   return res.changes > 0;
 }
 
-export type PublicFileRecord = Omit<FileRecord, 'wrappedKeyIv' | 'wrappedKeyTag' | 'wrappedKeyCiphertext'>;
+export type PublicFileRecord = Omit<FileRecord, 'wrappedKeyIv' | 'wrappedKeyTag' | 'wrappedKeyCiphertext' | 'wrappedKeyId' | 'wrappedKeyVersion'>;
 
 export function toPublicFileRecord(file: FileRecord): PublicFileRecord {
-  const { wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, ...rest } = file;
+  const { wrappedKeyIv, wrappedKeyTag, wrappedKeyCiphertext, wrappedKeyId, wrappedKeyVersion, ...rest } = file;
   return rest;
 }
 
@@ -219,6 +225,8 @@ export async function persistEncryptedChunks(params: {
   description?: string | null;
   folderId?: string | null;
   wrappedKey: { iv: Buffer; tag: Buffer; ciphertext: Buffer };
+  wrappedKeyId: string;
+  wrappedKeyVersion: number;
   chunks: PreparedChunk[];
   fileId?: string;
 }): Promise<FileRecord> {
@@ -236,6 +244,8 @@ export async function persistEncryptedChunks(params: {
     wrappedKeyIv: params.wrappedKey.iv,
     wrappedKeyTag: params.wrappedKey.tag,
     wrappedKeyCiphertext: params.wrappedKey.ciphertext,
+    wrappedKeyId: params.wrappedKeyId,
+    wrappedKeyVersion: params.wrappedKeyVersion,
     totalChunks,
     createdAt: now,
     updatedAt: now,

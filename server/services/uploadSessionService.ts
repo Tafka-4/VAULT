@@ -8,6 +8,7 @@ import { persistEncryptedChunks, getFileById } from './fileService';
 import { recordActivityLog } from './activityLogService';
 import { kmsClient } from '../utils/kmsClient';
 import { encryptionPool } from '../utils/encryptionPool';
+import { getActiveKmsKey } from '../utils/kmsKeyManager';
 
 const cfg = getAppConfig();
 const uploadsRoot = resolve(cfg.dataDir, 'uploads');
@@ -202,7 +203,8 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
       size: ciphertext.length,
     });
   }
-  const wrappedKey = await kmsClient.encrypt(dataKey);
+  const kmsKey = await getActiveKmsKey();
+  const wrappedKey = await kmsClient.wrapWithKey({ keyId: kmsKey.keyId, version: kmsKey.version, plaintext: dataKey });
   dataKey.fill(0);
   sessionKeys.delete(sessionId);
   let record;
@@ -215,6 +217,8 @@ export async function finalizeUploadSession(sessionId: string, userId: string) {
       description: session.description,
       folderId: session.folderId,
       wrappedKey,
+      wrappedKeyId: kmsKey.keyId,
+      wrappedKeyVersion: kmsKey.version,
       chunks: encryptedChunks,
       fileId,
     });

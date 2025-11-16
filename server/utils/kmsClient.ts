@@ -13,6 +13,20 @@ type DecryptPayload = {
 	tag: Buffer;
 };
 
+type WrapRequest = {
+	keyId: string;
+	version: number;
+	plaintext: Buffer;
+};
+
+type UnwrapRequest = {
+	keyId: string;
+	version: number;
+	ciphertext: Buffer;
+	iv: Buffer;
+	tag: Buffer;
+};
+
 type KmsResponse<T> = { data: T };
 const MAX_KMS_ATTEMPTS = 3;
 const MAX_SESSION_INIT_ATTEMPTS = 3;
@@ -80,24 +94,69 @@ class KmsClient {
 		return Buffer.from(result.plaintext, "base64");
 	}
 
+	async generatePersistentKey() {
+		return this.callKeys<{ keyId: string; version: number }>("generate", {});
+	}
+
+	async wrapWithKey(params: WrapRequest): Promise<EncryptResult> {
+		const result = await this.callKeys<{
+			ciphertext: string;
+			iv: string;
+			tag: string;
+		}>("wrap", {
+			keyId: params.keyId,
+			version: params.version,
+			plaintext: params.plaintext.toString("base64"),
+		});
+		return {
+			ciphertext: Buffer.from(result.ciphertext, "base64"),
+			iv: Buffer.from(result.iv, "base64"),
+			tag: Buffer.from(result.tag, "base64"),
+		};
+	}
+
+	async unwrapWithKey(params: UnwrapRequest): Promise<Buffer> {
+		const result = await this.callKeys<{ plaintext: string }>("unwrap", {
+			keyId: params.keyId,
+			version: params.version,
+			ciphertext: params.ciphertext.toString("base64"),
+			iv: params.iv.toString("base64"),
+			tag: params.tag.toString("base64"),
+		});
+		return Buffer.from(result.plaintext, "base64");
+	}
+
 	private async callCrypto<T>(
 		endpoint: "encrypt" | "decrypt",
 		body: Record<string, any>,
 		attempt = 0
 	): Promise<T> {
+		return this.postWithRetry(`/crypto/${endpoint}`, body, attempt);
+	}
+
+	private async callKeys<T>(
+		endpoint: "generate" | "rotate" | "wrap" | "unwrap",
+		body: Record<string, any>,
+		attempt = 0
+	): Promise<T> {
+		return this.postWithRetry(`/keys/${endpoint}`, body, attempt);
+	}
+
+	private async postWithRetry<T>(
+		path: string,
+		body: Record<string, any>,
+		attempt = 0
+	): Promise<T> {
 		await this.ensureSession();
 		try {
-			const res = await this.fetchJson<KmsResponse<T>>(
-				`/crypto/${endpoint}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						"X-Client-Token": this.token,
-					},
-					body: JSON.stringify(body),
-				}
-			);
+			const res = await this.fetchJson<KmsResponse<T>>(path, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Client-Token": this.token,
+				},
+				body: JSON.stringify(body),
+			});
 			if ("error" in res) {
 				throw new KmsRequestError(
 					res.error?.message || "KMS error",
@@ -106,18 +165,15 @@ class KmsClient {
 			}
 			return res.data;
 		} catch (error) {
-			if (
-				error instanceof KmsRequestError &&
-				attempt < MAX_KMS_ATTEMPTS
-			) {
+			if (error instanceof KmsRequestError && attempt < MAX_KMS_ATTEMPTS) {
 				if (error.statusCode === 429) {
 					await this.sleep(500 * 2 ** attempt);
-					return this.callCrypto(endpoint, body, attempt + 1);
+					return this.postWithRetry(path, body, attempt + 1);
 				}
 				if (error.statusCode === 401 || error.statusCode === 403) {
 					this.sessionId = undefined;
 					await this.ensureSession();
-					return this.callCrypto(endpoint, body, attempt + 1);
+					return this.postWithRetry(path, body, attempt + 1);
 				}
 			}
 			throw error;

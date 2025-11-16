@@ -57,11 +57,22 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const dataKey = await kmsClient.decrypt({
-    ciphertext: file.wrappedKeyCiphertext,
-    iv: file.wrappedKeyIv,
-    tag: file.wrappedKeyTag,
-  });
+  let dataKey: Buffer;
+  if (file.wrappedKeyId && typeof file.wrappedKeyVersion === 'number') {
+    dataKey = await kmsClient.unwrapWithKey({
+      keyId: file.wrappedKeyId,
+      version: file.wrappedKeyVersion,
+      ciphertext: file.wrappedKeyCiphertext,
+      iv: file.wrappedKeyIv,
+      tag: file.wrappedKeyTag,
+    });
+  } else {
+    dataKey = await kmsClient.decrypt({
+      ciphertext: file.wrappedKeyCiphertext,
+      iv: file.wrappedKeyIv,
+      tag: file.wrappedKeyTag,
+    });
+  }
 
   const stream = new PassThrough();
   recordActivityLog({

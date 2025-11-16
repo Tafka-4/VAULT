@@ -51,6 +51,8 @@ db.exec(`
     wrappedKeyIv BLOB,
     wrappedKeyTag BLOB,
     wrappedKeyCiphertext BLOB,
+    wrappedKeyId TEXT,
+    wrappedKeyVersion INTEGER,
     totalChunks INTEGER NOT NULL,
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
@@ -106,6 +108,8 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_files_folder ON files(folderId)');
 ensureColumn('files', 'wrappedKeyIv', 'ALTER TABLE files ADD COLUMN wrappedKeyIv BLOB');
 ensureColumn('files', 'wrappedKeyTag', 'ALTER TABLE files ADD COLUMN wrappedKeyTag BLOB');
 ensureColumn('files', 'wrappedKeyCiphertext', 'ALTER TABLE files ADD COLUMN wrappedKeyCiphertext BLOB');
+ensureColumn('files', 'wrappedKeyId', 'ALTER TABLE files ADD COLUMN wrappedKeyId TEXT');
+ensureColumn('files', 'wrappedKeyVersion', 'ALTER TABLE files ADD COLUMN wrappedKeyVersion INTEGER');
 
 function ensureColumn(table: string, column: string, alterSql: string) {
   const info = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
