@@ -169,9 +169,30 @@
                 새로고침
               </button>
             </div>
-            <p v-if="currentPathLabel" class="mt-2 text-xs text-paper-oklch/60">
-              경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span>
-            </p>
+            <div v-if="currentPathLabel" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-paper-oklch/60">
+              <span>경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span></span>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="folderScope !== 'all'"
+                  type="button"
+                  class="tap-area inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-paper-oklch/70 hover:bg-white/10"
+                  @click="goToParentFolder"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  상위
+                </button>
+                <button
+                  v-if="folderScope !== 'all'"
+                  type="button"
+                  class="tap-area rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-paper-oklch/70 hover:bg-white/10"
+                  @click="selectFolderScope('all')"
+                >
+                  전체
+                </button>
+              </div>
+            </div>
           </div>
           <div class="rounded-[1.25rem] bg-black/30 p-2">
             <template v-if="filteredFolders.length">
@@ -468,6 +489,20 @@ const submitCreateFolder = async () => {
 
 const selectFolderScope = (scope: 'all' | 'root' | string) => {
   folderScope.value = scope
+}
+
+const goToParentFolder = () => {
+  if (folderScope.value === 'all') return
+  if (folderScope.value === 'root') {
+    folderScope.value = 'all'
+    return
+  }
+  const current = folders.value.find(folder => folder.id === folderScope.value)
+  if (!current) {
+    folderScope.value = 'all'
+    return
+  }
+  folderScope.value = current.parentId ?? 'root'
 }
 
 const pinnedGridColsClass = computed(() => {
