@@ -12,5 +12,8 @@ export function serializeShareLink(link: ShareLinkRecord): ShareLink {
     lastAccessedAt: link.lastAccessedAt,
     accessCount: link.accessCount,
     hasPassword: link.hasPassword,
+    folderId: link.folderId,
+    folderName: link.folderName,
+    folderPath: link.folderPath,
   };
 }

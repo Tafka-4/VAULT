@@ -122,23 +122,34 @@
         <aside class="space-y-5">
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
             <div class="flex items-center justify-between">
-              <h2 class="text-base font-semibold">즐겨찾는 공유 폴더</h2>
-              <NuxtLink to="/app" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">열기</NuxtLink>
+              <h2 class="text-base font-semibold">공유된 폴더</h2>
+              <span class="text-xs text-paper-oklch/60">{{ folderGroups.length }}개</span>
             </div>
-            <ul class="space-y-2 text-sm text-paper-oklch/70" v-if="pinnedShare.length">
+            <ul class="space-y-2 text-sm text-paper-oklch/70" v-if="folderGroups.length">
               <li
-                v-for="folder in pinnedShare"
-                :key="folder.name"
-                class="flex items-center justify-between rounded-[1.25rem] bg-black/35 px-4 py-4 ring-1 ring-surface"
+                v-for="group in folderGroups"
+                :key="group.folderId ?? 'root'"
+                class="rounded-[1.25rem] bg-black/35 px-4 py-4 ring-1 ring-surface"
               >
-                <div>
-                  <p class="font-medium">{{ folder.name }}</p>
-                  <p class="text-xs text-paper-oklch/55">{{ folder.detail }}</p>
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="font-medium">{{ group.folderName || '루트 폴더' }}</p>
+                    <p class="text-xs text-paper-oklch/55">{{ group.folderPath || '/' }}</p>
+                  </div>
+                  <span class="text-xs text-paper-oklch/50">{{ group.files.length }}개 파일</span>
                 </div>
-                <span class="text-xs text-paper-oklch/50">{{ folder.updated }}</span>
+                <div class="mt-2 space-y-1 text-xs text-paper-oklch/60">
+                  <div v-for="file in group.files.slice(0, 3)" :key="file.id" class="flex items-center justify-between">
+                    <NuxtLink :to="`/app/file-preview/${file.fileId}`" class="truncate hover:text-paper-oklch/80">
+                      {{ file.fileName }}
+                    </NuxtLink>
+                    <span>{{ formatBytes(file.fileSize) }}</span>
+                  </div>
+                  <p v-if="group.files.length > 3" class="text-right text-paper-oklch/50">외 {{ group.files.length - 3 }}개 더 있음</p>
+                </div>
               </li>
             </ul>
-            <p v-else class="text-xs text-paper-oklch/55">크기가 큰 파일이 여기에 표시됩니다.</p>
+            <p v-else class="text-xs text-paper-oklch/55">공유된 폴더가 없습니다.</p>
           </div>
 
           <div class="space-y-3 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface">
@@ -177,6 +188,7 @@ definePageMeta({ layout: 'app' })
 
 type FilesResponse = { data: StoredFile[] }
 type ShareLinksResponse = { data: ShareLink[] }
+type FolderGroup = { folderId: string | null; folderName: string; folderPath: string; files: ShareLink[] }
 
 const requestFetch = useRequestFetch()
 
@@ -273,26 +285,34 @@ const formatRelative = (timestamp: number) => {
   return absoluteDays ? `${absoluteDays}일 남음` : '곧 만료'
 }
 
-const pinnedShare = computed(() =>
-  [...shareLinks.value]
-    .sort((a, b) => b.fileSize - a.fileSize)
-    .slice(0, 3)
-    .map(link => ({
-      name: link.fileName,
-      detail: `${formatBytes(link.fileSize)} · 링크`,
-      updated: formatRelative(link.expiresAt)
-    }))
-)
+const folderGroups = computed(() => {
+  const groups = new Map<string, FolderGroup>()
+  shareLinks.value.forEach(link => {
+    const key = link.folderId ?? 'root'
+    if (!groups.has(key)) {
+      groups.set(key, {
+        folderId: link.folderId ?? null,
+        folderName: link.folderName ?? (link.folderId ? '폴더' : '루트 폴더'),
+        folderPath: link.folderPath ?? '/',
+        files: []
+      })
+    }
+    groups.get(key)!.files.push(link)
+  })
+  return Array.from(groups.values()).sort((a, b) => b.files.length - a.files.length)
+})
 
 const externalStatus = computed(() => {
   const total = shareLinks.value.length
-  const expiringSoon = shareLinks.value.filter(link => link.expiresAt - Date.now() < 3 * 24 * 60 * 60 * 1000).length
   const protectedCount = shareLinks.value.filter(link => link.hasPassword).length
+  const expiringSoon = shareLinks.value.filter(link => link.expiresAt - Date.now() < 3 * 24 * 60 * 60 * 1000).length
   const totalAccess = shareLinks.value.reduce((sum, link) => sum + link.accessCount, 0)
+  const folderCount = folderGroups.value.length
   return [
     { label: '활성 링크', value: `${total}개` },
-    { label: '만료 예정 (3일)', value: `${expiringSoon}개` },
+    { label: '공유 폴더', value: `${folderCount}개` },
     { label: '비밀번호 보호', value: `${protectedCount}개` },
+    { label: '만료 임박 (3일)', value: `${expiringSoon}개` },
     { label: '총 다운로드', value: `${totalAccess}회` }
   ]
 })

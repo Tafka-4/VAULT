@@ -97,7 +97,9 @@ db.exec(`
     createdAt INTEGER NOT NULL,
     lastAccessedAt INTEGER,
     accessCount INTEGER NOT NULL DEFAULT 0,
+    folderId TEXT,
     FOREIGN KEY (fileId) REFERENCES files(id) ON DELETE CASCADE,
+    FOREIGN KEY (folderId) REFERENCES folders(id) ON DELETE CASCADE,
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_share_links_user ON share_links(userId, createdAt DESC);
@@ -110,6 +112,7 @@ ensureColumn('files', 'wrappedKeyTag', 'ALTER TABLE files ADD COLUMN wrappedKeyT
 ensureColumn('files', 'wrappedKeyCiphertext', 'ALTER TABLE files ADD COLUMN wrappedKeyCiphertext BLOB');
 ensureColumn('files', 'wrappedKeyId', 'ALTER TABLE files ADD COLUMN wrappedKeyId TEXT');
 ensureColumn('files', 'wrappedKeyVersion', 'ALTER TABLE files ADD COLUMN wrappedKeyVersion INTEGER');
+ensureColumn('share_links', 'folderId', 'ALTER TABLE share_links ADD COLUMN folderId TEXT REFERENCES folders(id) ON DELETE CASCADE');
 
 function ensureColumn(table: string, column: string, alterSql: string) {
   const info = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;

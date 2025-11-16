@@ -13,6 +13,9 @@ export type ShareLinkRow = {
   accessCount: number;
   fileName?: string;
   fileSize?: number;
+  folderId?: string | null;
+  folderName?: string | null;
+  folderPath?: string | null;
 };
 
 export type ShareLinkRecord = {
@@ -27,6 +30,9 @@ export type ShareLinkRecord = {
   passwordHash: string | null;
   fileName: string;
   fileSize: number;
+  folderId: string | null;
+  folderName: string | null;
+  folderPath: string | null;
 };
 
 const insertStmt = db.prepare(`
@@ -35,9 +41,10 @@ const insertStmt = db.prepare(`
 `);
 
 const listStmt = db.prepare(`
-  SELECT sl.*, f.name as fileName, f.size as fileSize
+  SELECT sl.*, f.name as fileName, f.size as fileSize, fld.id as folderId, fld.name as folderName, fld.path as folderPath
   FROM share_links sl
   JOIN files f ON f.id = sl.fileId
+  LEFT JOIN folders fld ON fld.id = f.folderId
   WHERE sl.userId = ?
   ORDER BY sl.createdAt DESC
 `);
@@ -45,9 +52,10 @@ const listStmt = db.prepare(`
 const deleteStmt = db.prepare(`DELETE FROM share_links WHERE id = ? AND userId = ?`);
 
 const getStmt = db.prepare(`
-  SELECT sl.*, f.name as fileName, f.size as fileSize
+  SELECT sl.*, f.name as fileName, f.size as fileSize, fld.id as folderId, fld.name as folderName, fld.path as folderPath
   FROM share_links sl
   JOIN files f ON f.id = sl.fileId
+  LEFT JOIN folders fld ON fld.id = f.folderId
   WHERE sl.id = ?
 `);
 
@@ -118,5 +126,8 @@ function toRecord(row: ShareLinkRow): ShareLinkRecord {
     passwordHash: row.passwordHash ?? null,
     fileName: row.fileName ?? '',
     fileSize: row.fileSize ?? 0,
+    folderId: row.folderId ?? null,
+    folderName: row.folderName ?? null,
+    folderPath: row.folderPath ?? null,
   };
 }

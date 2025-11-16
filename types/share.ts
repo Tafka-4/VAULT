@@ -8,6 +8,9 @@ export type ShareLink = {
   lastAccessedAt: number | null;
   accessCount: number;
   hasPassword: boolean;
+  folderId: string | null;
+  folderName: string | null;
+  folderPath: string | null;
 };
 
 export type PublicShareMetadata = {
@@ -17,4 +20,5 @@ export type PublicShareMetadata = {
   mimeType: string;
   expiresAt: number;
   hasPassword: boolean;
+  folderPath: string | null;
 };

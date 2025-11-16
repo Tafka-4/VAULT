@@ -1,6 +1,7 @@
 import { createError, defineEventHandler } from 'h3';
 import { assertActiveShareLink } from '~/server/services/shareLinkService';
 import { getFileById } from '~/server/services/fileService';
+import { getFolderById } from '~/server/services/folderService';
 
 export default defineEventHandler(async (event) => {
   const id = event.context.params?.id;
@@ -12,6 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!file) {
     throw createError({ statusCode: 404, message: '파일을 찾을 수 없습니다.' });
   }
+  const folder = file.folderId ? getFolderById(file.folderId) : null;
 
   return {
     data: {
@@ -21,6 +23,7 @@ export default defineEventHandler(async (event) => {
       mimeType: file.mimeType,
       expiresAt: link.expiresAt,
       hasPassword: link.hasPassword,
+      folderPath: folder?.path ?? null,
     },
   };
 });
