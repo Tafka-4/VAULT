@@ -4,7 +4,7 @@ import db from '../utils/db';
 import { getAppConfig } from '../utils/config';
 import { chunkBuffer } from '../utils/chunk';
 import { kmsClient } from '../utils/kmsClient';
-import { encryptWithKey } from '../utils/aes';
+import { encryptionPool } from '../utils/encryptionPool';
 
 const cfg = getAppConfig();
 
@@ -119,7 +119,7 @@ export async function saveEncryptedFile(params: {
   const chunks = chunkBuffer(buffer, cfg.chunkSize);
   const dataKey = randomBytes(32);
   const wrappedKey = await kmsClient.encrypt(dataKey);
-  const encryptedChunks = encryptChunksWithDataKey(chunks, dataKey);
+  const encryptedChunks = await encryptChunksWithDataKey(chunks, dataKey);
   dataKey.fill(0);
 
   return persistEncryptedChunks({
@@ -221,9 +221,9 @@ export async function persistEncryptedChunks(params: {
   return file;
 }
 
-function encryptChunksWithDataKey(chunks: Buffer[], key: Buffer): PreparedChunk[] {
-  return chunks.map((chunk, index) => {
-    const encrypted = encryptWithKey(chunk, key);
+async function encryptChunksWithDataKey(chunks: Buffer[], key: Buffer): Promise<PreparedChunk[]> {
+  const tasks = chunks.map(async (chunk, index) => {
+    const encrypted = await encryptionPool.encrypt(chunk, key);
     return {
       id: nanoid(21),
       chunkIndex: index,
@@ -233,4 +233,5 @@ function encryptChunksWithDataKey(chunks: Buffer[], key: Buffer): PreparedChunk[
       size: chunk.length,
     };
   });
+  return Promise.all(tasks);
 }

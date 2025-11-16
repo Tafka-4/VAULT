@@ -319,6 +319,8 @@ const processQueue = async () => {
   }
 }
 
+const MIN_SPEED_SAMPLE_WINDOW_MS = 200
+
 const uploadSingleFile = (item: UploadItem) => {
   if (!process.client) {
     return Promise.reject(new Error('클라이언트에서만 업로드할 수 있습니다.'))
@@ -334,15 +336,25 @@ const uploadSingleFile = (item: UploadItem) => {
     xhr.open('POST', '/api/files')
     xhr.withCredentials = true
     const startedAt = performance.now()
+    let lastLoadedBytes = 0
+    let lastSampleAt = startedAt
     registerRequest(item.id, xhr)
 
     xhr.upload.onprogress = event => {
       if (!event.lengthComputable) return
       const percent = Math.min(99, Math.round((event.loaded / event.total) * 100))
       item.progress = percent
-      const elapsed = Math.max(performance.now() - startedAt, 1)
-      const bytesPerSecond = event.loaded / (elapsed / 1000)
+      const now = performance.now()
+      const elapsed = Math.max(now - startedAt, 1)
+      const deltaBytes = Math.max(event.loaded - lastLoadedBytes, 0)
+      const deltaMs = Math.max(now - lastSampleAt, 1)
+      const instantaneous =
+        deltaMs >= MIN_SPEED_SAMPLE_WINDOW_MS && deltaBytes > 0 ? deltaBytes / (deltaMs / 1000) : 0
+      const average = event.loaded / (elapsed / 1000)
+      const bytesPerSecond = instantaneous || average
       item.speed = formatRate(bytesPerSecond)
+      lastLoadedBytes = event.loaded
+      lastSampleAt = now
     }
 
     xhr.onload = () => {
@@ -401,7 +413,8 @@ const uploadLargeFile = async (item: UploadItem) => {
     const now = performance.now()
     const deltaBytes = Math.max(totalLoaded - lastLoadedBytes, 0)
     const deltaMs = Math.max(now - lastSampleAt, 1)
-    const instantaneousRate = deltaBytes / (deltaMs / 1000)
+    const instantaneousRate =
+      deltaMs >= MIN_SPEED_SAMPLE_WINDOW_MS && deltaBytes > 0 ? deltaBytes / (deltaMs / 1000) : 0
     const averageRate = totalLoaded / (Math.max(now - startedAt, 1) / 1000)
     const bytesPerSecond = instantaneousRate > 0 ? instantaneousRate : averageRate
     item.speed = formatRate(bytesPerSecond)
