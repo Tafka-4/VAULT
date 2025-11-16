@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     const folder = assertFolderOwnership(auth.user.id, folderId);
     targetFolderId = folder.id;
   }
-  const session = createUploadSession({
+  const session = await createUploadSession({
     userId: auth.user.id,
     name,
     mimeType,

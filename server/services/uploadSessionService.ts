@@ -11,6 +11,7 @@ import { encryptionPool } from '../utils/encryptionPool';
 const cfg = getAppConfig();
 const uploadsRoot = resolve(cfg.dataDir, 'uploads');
 const sessionKeys = new Map<string, Buffer>();
+const sessionCache = new Map<string, UploadSession>();
 
 export type UploadSession = {
   id: string;
@@ -43,20 +44,30 @@ function chunkPath(id: string, index: number) {
   return join(sessionDir(id), `chunk-${index}.part`);
 }
 
-function saveSession(session: UploadSession) {
-  fs.writeFileSync(metaPath(session.id), JSON.stringify(session), 'utf8');
+async function saveSession(session: UploadSession) {
+  sessionCache.set(session.id, session);
+  await fsp.writeFile(metaPath(session.id), JSON.stringify(session), 'utf8');
 }
 
-function loadSession(id: string): UploadSession {
-  const path = metaPath(id);
-  if (!fs.existsSync(path)) {
-    throw new Error('업로드 세션을 찾을 수 없습니다.');
+async function loadSession(id: string): Promise<UploadSession> {
+  const cached = sessionCache.get(id);
+  if (cached) {
+    return cached;
   }
-  const raw = fs.readFileSync(path, 'utf8');
-  return JSON.parse(raw) as UploadSession;
+  try {
+    const raw = await fsp.readFile(metaPath(id), 'utf8');
+    const session = JSON.parse(raw) as UploadSession;
+    sessionCache.set(id, session);
+    return session;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      throw new Error('업로드 세션을 찾을 수 없습니다.');
+    }
+    throw error;
+  }
 }
 
-export function createUploadSession(params: {
+export async function createUploadSession(params: {
   userId: string;
   name: string;
   mimeType: string;
@@ -64,7 +75,7 @@ export function createUploadSession(params: {
   totalChunks: number;
   folderId?: string | null;
   description?: string;
-}): UploadSession {
+}): Promise<UploadSession> {
   const id = nanoid(21);
   const dir = sessionDir(id);
   fs.mkdirSync(dir, { recursive: true });
@@ -82,7 +93,7 @@ export function createUploadSession(params: {
     receivedBytes: 0,
     createdAt: Date.now(),
   };
-  saveSession(session);
+  await saveSession(session);
   return session;
 }
 
@@ -92,7 +103,7 @@ export async function appendUploadChunk(options: {
   chunkIndex: number;
   data: Buffer;
 }) {
-  const session = loadSession(options.sessionId);
+  const session = await loadSession(options.sessionId);
   if (session.userId !== options.userId) {
     throw new Error('세션에 접근할 수 없습니다.');
   }
@@ -115,11 +126,11 @@ export async function appendUploadChunk(options: {
   await fsp.writeFile(dest, payload);
   session.receivedChunks += 1;
   session.receivedBytes += options.data.length;
-  saveSession(session);
+  await saveSession(session);
 }
 
 export async function finalizeUploadSession(sessionId: string, userId: string) {
-  const session = loadSession(sessionId);
+  const session = await loadSession(sessionId);
   if (session.userId !== userId) {
     throw new Error('세션에 접근할 수 없습니다.');
   }
@@ -177,6 +188,7 @@ export function cleanupSession(sessionId: string) {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  sessionCache.delete(sessionId);
   const key = sessionKeys.get(sessionId);
   if (key) {
     key.fill(0);
@@ -184,9 +196,9 @@ export function cleanupSession(sessionId: string) {
   }
 }
 
-export function cancelUploadSession(sessionId: string, userId: string) {
+export async function cancelUploadSession(sessionId: string, userId: string) {
   try {
-    const session = loadSession(sessionId);
+    const session = await loadSession(sessionId);
     if (session.userId !== userId) {
       throw new Error('세션을 찾을 수 없습니다.');
     }
