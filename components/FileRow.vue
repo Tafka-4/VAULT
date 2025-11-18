@@ -19,18 +19,38 @@
         <p class="text-xs text-paper-oklch/60">{{ detail }}</p>
       </div>
     </div>
-    <button
-      v-if="props.showDelete"
-      type="button"
-      class="tap-area inline-flex items-center gap-1 rounded-xl px-3 py-1 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
-      :disabled="props.deleting"
-      @click.stop="emit('delete')"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
-      </svg>
-      <span>{{ props.deleting ? '삭제 중...' : '삭제' }}</span>
-    </button>
+    <div class="ml-4 flex items-center gap-2">
+      <button
+        v-if="props.pinnable"
+        type="button"
+        class="tap-area rounded-full p-1 text-paper-oklch/60 transition hover:bg-white/10"
+        :class="props.pinned ? 'text-amber-300' : ''"
+        @click.stop="emit('pin')"
+        aria-label="즐겨찾기 전환"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            :fill="props.pinned ? 'currentColor' : 'none'"
+            d="M12 3.5l2.472 5.16 5.695.828-4.084 4.11.964 5.8L12 16.8l-5.047 2.598.964-5.8-4.084-4.11 5.695-.828z"
+          />
+        </svg>
+      </button>
+      <button
+        v-if="props.showDelete"
+        type="button"
+        class="tap-area inline-flex items-center gap-1 rounded-xl px-3 py-1 text-xs text-red-200/80 hover:bg-white/10 disabled:opacity-50"
+        :disabled="props.deleting"
+        @click.stop="emit('delete')"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 7h12M9 7l.867-2.6A1 1 0 0 1 10.816 4h2.368a1 1 0 0 1 .949.658L15 7m0 0v11a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7" />
+        </svg>
+        <span>{{ props.deleting ? '삭제 중...' : '삭제' }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -47,8 +67,10 @@ const props = defineProps<{
   draggable?: boolean
   actionable?: boolean
   active?: boolean
+  pinnable?: boolean
+  pinned?: boolean
 }>()
-const emit = defineEmits<{ (e: 'delete'): void; (e: 'dragstart'): void; (e: 'dragend'): void; (e: 'action'): void }>()
+const emit = defineEmits<{ (e: 'delete'): void; (e: 'dragstart'): void; (e: 'dragend'): void; (e: 'action'): void; (e: 'pin'): void }>()
 
 const isInteractive = computed(() => Boolean(props.to) || Boolean(props.actionable))
 const role = computed(() => {

@@ -21,7 +21,7 @@
 <script setup lang="ts">
 const auth = useAuth()
 
-if (auth.status.value === 'idle') {
+if (!auth.user.value) {
   try {
     await auth.refresh()
   } catch {

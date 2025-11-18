@@ -85,47 +85,35 @@
 
       <section id="pinned" class="space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">즐겨찾기 폴더</h2>
-          <button class="tap-area inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs uppercase font-semibold text-paper-oklch/70 ring-1 ring-surface">
-            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h12M3 12h8M3 18h4M17 6v12m0 0 3-3m-3 3-3-3" />
-            </svg>
-            {{ pinnedFiles.length ? '용량순' : '정렬' }}
-          </button>
+          <h2 class="text-lg font-semibold">즐겨찾기</h2>
+          <span class="text-xs uppercase tracking-[0.3em] text-paper-oklch/55">
+            {{ pinnedItems.length ? `${pinnedItems.length}개` : '비어 있음' }}
+          </span>
         </div>
-        <div class="grid gap-3" :class="pinnedGridColsClass">
-          <div
-            v-for="file in pinnedFiles"
-            :key="file.id"
-            class="rounded-2xl bg-white/5 px-5 py-5 ring-1 ring-surface transition hover:bg-white/10"
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-surface">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
-                  </svg>
-                </div>
-                <div class="min-w-0">
-                  <p class="font-medium truncate">{{ file.name }}</p>
-                  <p class="text-xs text-paper-oklch/55">{{ formatBytes(file.size) }} · {{ formatRelative(file.updatedAt) }}</p>
-                </div>
-              </div>
-              <span class="rounded-full bg-white/10 px-3 py-1 text-xs text-paper-oklch/60">암호화</span>
-            </div>
-            <div class="mt-4 flex items-center justify-between text-xs text-paper-oklch/50">
-              <span>{{ formatRelative(file.updatedAt) }}</span>
-              <NuxtLink
-                :to="`/app/file-preview/${file.id}`"
-                class="tap-area rounded-lg px-3 py-1 ring-1 ring-surface hover:bg-white/10"
-              >
-                열기
-              </NuxtLink>
-            </div>
+        <div v-if="pinnedItems.length" class="rounded-[1.75rem] bg-white/5 p-3 ring-1 ring-surface">
+          <div class="rounded-[1.25rem] bg-black/30 p-2">
+            <FileRow
+              v-for="item in pinnedItems"
+              :key="`${item.type}-${item.id}`"
+              :icon="item.icon"
+              :name="item.name"
+              :detail="item.detail"
+              :to="item.to"
+              :actionable="item.type === 'folder'"
+              :pinnable="true"
+              :pinned="true"
+              @pin="togglePinEntry(item.type, item.id)"
+              @action="item.folderId ? handlePinnedFolderNavigate(item.folderId) : null"
+            />
           </div>
-          <div v-if="!pinnedFiles.length" class="rounded-2xl bg-white/5 px-5 py-10 text-center text-sm text-paper-oklch/60 ring-1 ring-surface">
-            용량이 큰 파일이 업로드되면 자동으로 표시됩니다.
-          </div>
+        </div>
+        <div
+          v-else
+          class="rounded-[1.75rem] bg-white/5 p-6 text-sm text-paper-oklch/70 ring-1 ring-surface"
+        >
+          <p class="leading-relaxed">
+            아직 즐겨찾기한 파일이나 폴더가 없습니다. 라이브러리에서 별 아이콘을 눌러 자주 사용하는 항목을 고정할 수 있어요.
+          </p>
         </div>
       </section>
 
@@ -207,11 +195,15 @@
                 :active="folderScope === folder.id"
                 show-delete
                 :deleting="Boolean(deleteFolderState[folder.id])"
+                :pinnable="true"
+                :pinned="isFolderPinned(folder.id)"
                 @action="selectFolderScope(folder.id)"
                 @delete="requestDeleteFolder(folder)"
+                @pin="toggleFolderPin(folder)"
               />
             </template>
             <template v-if="filteredFiles.length">
+              <p class="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-paper-oklch/50">파일</p>
               <FileRow
                 v-for="file in filteredFiles"
                 :key="file.id"
@@ -222,9 +214,12 @@
                 show-delete
                 :deleting="Boolean(deleteState[file.id])"
                 draggable
+                :pinnable="true"
+                :pinned="isFilePinned(file.id)"
                 @dragstart="handleFileDragStart(file.id)"
                 @dragend="handleFileDragEnd"
                 @delete="requestDeleteFile(file)"
+                @pin="toggleFilePin(file)"
               />
             </template>
             <p v-else class="p-4 text-center text-sm text-paper-oklch/55">표시할 파일이 없습니다.</p>
@@ -324,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
+import { computed, ref, reactive, watch } from 'vue'
 import type { StoredFile, StoredFolder } from '~/types/storage'
 import { getErrorMessage } from '~/utils/errorMessage'
 
@@ -334,6 +329,7 @@ definePageMeta({ layout: 'app' })
 type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
 type StorageStatsResponse = { data: { totalBytes: number; usedBytes: number; freeBytes: number; userBytes: number } }
+type PinnedEntry = { id: string; type: 'file' | 'folder' }
 
 const search = ref('')
 const quotaBytes = 512 * 1024 * 1024 * 1024 // 512GB
@@ -354,6 +350,116 @@ const { data: storageStats } = await useFetch<StorageStatsResponse>('/api/storag
 
 const files = computed(() => data.value?.data ?? [])
 const folders = computed(() => foldersData.value?.data ?? [])
+
+const pinnedEntries = useState<PinnedEntry[]>('dashboard:pinned', () => [])
+const pinnedLoaded = useState('dashboard:pinned-loaded', () => false)
+
+if (process.client && !pinnedLoaded.value) {
+  try {
+    const raw = localStorage.getItem('vault:pinned')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        pinnedEntries.value = parsed.filter(
+          (entry: any) => entry && (entry.type === 'file' || entry.type === 'folder') && typeof entry.id === 'string'
+        )
+      }
+    }
+  } catch {
+    // ignore malformed storage
+  } finally {
+    pinnedLoaded.value = true
+  }
+}
+
+if (process.client) {
+  watch(
+    pinnedEntries,
+    value => {
+      if (!pinnedLoaded.value) return
+      try {
+        localStorage.setItem('vault:pinned', JSON.stringify(value))
+      } catch {
+        // ignore storage errors
+      }
+    },
+    { deep: true }
+  )
+}
+
+const prunePinnedEntries = () => {
+  const fileIds = new Set(files.value.map(file => file.id))
+  const folderIds = new Set(folders.value.map(folder => folder.id))
+  pinnedEntries.value = pinnedEntries.value.filter(entry =>
+    entry.type === 'file' ? fileIds.has(entry.id) : folderIds.has(entry.id)
+  )
+}
+
+watch([files, folders], () => prunePinnedEntries(), { immediate: true })
+
+const isPinned = (type: PinnedEntry['type'], id: string) =>
+  pinnedEntries.value.some(entry => entry.type === type && entry.id === id)
+
+const togglePinEntry = (type: PinnedEntry['type'], id: string) => {
+  if (isPinned(type, id)) {
+    pinnedEntries.value = pinnedEntries.value.filter(entry => !(entry.type === type && entry.id === id))
+  } else {
+    pinnedEntries.value = [...pinnedEntries.value, { type, id }]
+  }
+}
+
+const pinnedFiles = computed(() =>
+  pinnedEntries.value
+    .filter(entry => entry.type === 'file')
+    .map(entry => files.value.find(file => file.id === entry.id))
+    .filter((file): file is StoredFile => Boolean(file))
+)
+
+const pinnedFolders = computed(() =>
+  pinnedEntries.value
+    .filter(entry => entry.type === 'folder')
+    .map(entry => folders.value.find(folder => folder.id === entry.id))
+    .filter((folder): folder is StoredFolder => Boolean(folder))
+)
+
+type PinnedDisplay = {
+  id: string
+  type: 'file' | 'folder'
+  name: string
+  detail: string
+  icon: 'file' | 'image' | 'folder'
+  to?: string
+  folderId?: string
+}
+
+const pinnedItems = computed<PinnedDisplay[]>(() => {
+  const fileItems = pinnedFiles.value.map<PinnedDisplay>(file => ({
+    id: file.id,
+    type: 'file',
+    name: file.name,
+    detail: detailForFile(file),
+    icon: iconForFile(file),
+    to: `/app/file-preview/${file.id}`
+  }))
+  const folderItems = pinnedFolders.value.map<PinnedDisplay>(folder => ({
+    id: folder.id,
+    type: 'folder',
+    name: folder.name,
+    detail: folder.path,
+    icon: 'folder',
+    folderId: folder.id
+  }))
+  return [...folderItems, ...fileItems]
+})
+
+const handlePinnedFolderNavigate = (folderId: string) => {
+  folderScope.value = folderId
+}
+
+const isFilePinned = (id: string) => isPinned('file', id)
+const isFolderPinned = (id: string) => isPinned('folder', id)
+const toggleFilePin = (file: StoredFile) => togglePinEntry('file', file.id)
+const toggleFolderPin = (folder: StoredFolder) => togglePinEntry('folder', folder.id)
 
 const folderScopeFilter = computed(() => {
   if (folderScope.value === 'all') return undefined
@@ -392,10 +498,6 @@ const filteredFolders = computed(() => {
 const totalEntriesCount = computed(() => filteredFolders.value.length + filteredFiles.value.length)
 
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
-
-const pinnedFiles = computed(() =>
-  [...files.value].sort((a, b) => b.size - a.size).slice(0, 2)
-)
 
 const selectedFolder = computed(() => {
   if (folderScope.value === 'all') return null
@@ -586,11 +688,6 @@ const goToParentFolder = () => {
   }
   folderScope.value = current.parentId ?? 'root'
 }
-
-const pinnedGridColsClass = computed(() => {
-  if (pinnedFiles.value.length === 0) return 'grid-cols-1'
-  return pinnedFiles.value.length % 2 === 1 ? 'sm:grid-cols-1' : 'sm:grid-cols-2'
-})
 
 const totalUsageBytes = computed(() => files.value.reduce((sum, file) => sum + file.size, 0))
 

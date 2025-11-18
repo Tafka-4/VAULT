@@ -4,7 +4,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   const auth = useAuth();
-  if (auth.status.value === 'idle') {
+  if (!auth.user.value) {
     try {
       await auth.refresh();
     } catch {
@@ -13,6 +13,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (auth.user.value) {
-    return navigateTo('/app');
+    return navigateTo('/app', { replace: true });
   }
 });
