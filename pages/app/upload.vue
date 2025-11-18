@@ -13,15 +13,27 @@
         <form class="space-y-6 rounded-[2rem] bg-white/5 p-6 ring-1 ring-surface" @submit.prevent>
           <div class="space-y-2 text-left">
             <label class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">업로드 위치</label>
+            <div class="relative">
               <select
-                  v-model="selectedFolderOption"
-                  class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
-                >
+                v-model="selectedFolderOption"
+                class="w-full appearance-none rounded-xl border border-white/10 bg-black/30 px-4 py-2 pr-10 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+              >
                 <option value="root">루트 폴더</option>
                 <option v-for="folder in folders" :key="folder.id" :value="folder.id">
-                {{ folder.path }}
+                  {{ folder.path }}
                 </option>
               </select>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-paper-oklch/60"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
           </div>
           <div
             class="rounded-[1.75rem] border-2 border-dashed border-white/15 bg-black/30 p-6 text-center text-sm text-paper-oklch/70 transition"

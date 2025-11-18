@@ -43,15 +43,27 @@
             <form class="mt-4 grid gap-3 text-sm text-paper-oklch/80" @submit.prevent="createLink">
               <div class="grid gap-2">
                 <label class="text-xs text-paper-oklch/55">파일 선택</label>
-                <select
-                  v-model="formState.fileId"
-                  class="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
-                >
-                  <option disabled value="">파일을 선택하세요</option>
-                  <option v-for="item in files" :key="item.id" :value="item.id">
-                    {{ item.name }} · {{ formatBytes(item.size) }}
-                  </option>
-                </select>
+                <div class="relative">
+                  <select
+                    v-model="formState.fileId"
+                    class="w-full appearance-none rounded-xl border border-white/10 bg-black/30 px-4 py-2 pr-10 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+                  >
+                    <option disabled value="">파일을 선택하세요</option>
+                    <option v-for="item in files" :key="item.id" :value="item.id">
+                      {{ item.name }} · {{ formatBytes(item.size) }}
+                    </option>
+                  </select>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-paper-oklch/60"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
               </div>
               <div class="grid gap-2">
                 <label class="text-xs text-paper-oklch/55">만료일 (일)</label>
