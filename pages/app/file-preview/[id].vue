@@ -89,6 +89,59 @@
               </li>
             </ul>
           </div>
+
+          <div v-if="isZipFile" class="space-y-3 rounded-[1.5rem] bg-black/35 p-5 text-sm ring-1 ring-surface">
+            <div class="flex items-center justify-between">
+              <span class="text-sm uppercase font-bold text-paper-oklch/55">압축 파일 내용</span>
+              <span v-if="zipEntries.length" class="text-xs text-paper-oklch/55">{{ zipEntries.length }}개 표시</span>
+            </div>
+            <div class="rounded-[1.25rem] bg-black/30 p-3 ring-1 ring-surface">
+              <p v-if="zipLoading" class="text-xs text-paper-oklch/60">목록을 불러오는 중입니다...</p>
+              <p v-else-if="zipError" class="text-xs text-rose-200/80">{{ zipError }}</p>
+              <template v-else>
+                <ul v-if="zipEntries.length" class="space-y-2 text-xs text-paper-oklch/70">
+                  <li
+                    v-for="entry in zipEntries"
+                    :key="entry.name"
+                    class="flex items-center justify-between gap-3 rounded-xl bg-black/40 px-3 py-2 ring-1 ring-white/5"
+                  >
+                    <div class="flex items-center gap-2 truncate">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="size-3.5 text-paper-oklch/60"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                      >
+                        <path
+                          v-if="entry.directory"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="1.5"
+                          d="M3 7h4l2-2h9a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1z"
+                        />
+                        <path
+                          v-else
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="1.5"
+                          d="M15.5 3.5h-7v17h9V8.5l-2-5z"
+                        />
+                      </svg>
+                      <span class="truncate">{{ entry.name }}</span>
+                    </div>
+                    <span class="text-paper-oklch/55">
+                      {{ entry.directory ? '폴더' : formatBytes(entry.uncompressedSize) }}
+                    </span>
+                  </li>
+                </ul>
+                <p v-else class="text-xs text-paper-oklch/55">압축 파일이 비어 있습니다.</p>
+                <p v-if="zipTruncated" class="mt-2 text-[11px] text-paper-oklch/45">
+                  항목이 많아 일부만 표시됩니다.
+                </p>
+              </template>
+            </div>
+          </div>
         </div>
 
         <aside class="space-y-5">
@@ -140,13 +193,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { StoredFile } from '~/types/storage'
+import type { ZipEntriesPayload, ZipEntrySummary } from '~/types/files'
+import { getErrorMessage } from '~/utils/errorMessage'
 
 // @ts-expect-error - Nuxt macro provided at compile-time
 definePageMeta({ layout: 'app' })
 
 const route = useRoute()
+const requestFetch = useRequestFetch()
 const fileId = computed(() => route.params.id as string)
 
 const fileFetchKey = `file-${fileId.value}`
@@ -159,6 +215,19 @@ const file = computed(() => data.value?.data)
 const streamUrl = computed(() => `/api/files/${fileId.value}/stream`)
 const downloadUrl = computed(() => `${streamUrl.value}?download=1`)
 
+const zipEntries = ref<ZipEntrySummary[]>([])
+const zipLoading = ref(false)
+const zipError = ref<string | null>(null)
+const zipTruncated = ref(false)
+const ZIP_MIME_TYPES = new Set(['application/zip', 'application/x-zip-compressed', 'multipart/x-zip'])
+const isZipFile = computed(() => {
+  if (!file.value) return false
+  const mime = file.value.mimeType?.toLowerCase() ?? ''
+  const name = file.value.name.toLowerCase()
+  return ZIP_MIME_TYPES.has(mime) || name.endsWith('.zip')
+})
+let zipRequestToken = 0
+
 const previewType = computed(() => {
   if (!file.value) return 'none'
   if (file.value.mimeType.startsWith('image/')) return 'image'
@@ -166,6 +235,47 @@ const previewType = computed(() => {
   if (file.value.mimeType.startsWith('audio/')) return 'audio'
   return 'other'
 })
+
+const fetchZipEntries = async () => {
+  if (!isZipFile.value || !fileId.value) {
+    zipEntries.value = []
+    zipError.value = null
+    zipTruncated.value = false
+    return
+  }
+  const currentToken = ++zipRequestToken
+  zipLoading.value = true
+  zipError.value = null
+  try {
+    const response = await requestFetch<{ data: ZipEntriesPayload }>(`/api/files/${fileId.value}/zip-entries`)
+    if (zipRequestToken !== currentToken) return
+    zipEntries.value = response?.data.entries ?? []
+    zipTruncated.value = Boolean(response?.data.truncated)
+  } catch (error) {
+    if (zipRequestToken !== currentToken) return
+    zipError.value = getErrorMessage(error) || '압축 파일 목록을 불러오지 못했습니다.'
+  } finally {
+    if (zipRequestToken === currentToken) {
+      zipLoading.value = false
+    }
+  }
+}
+
+if (process.client) {
+  watch(
+    () => ({ id: fileId.value, isZip: isZipFile.value }),
+    (state) => {
+      if (state.isZip) {
+        fetchZipEntries()
+      } else {
+        zipEntries.value = []
+        zipError.value = null
+        zipTruncated.value = false
+      }
+    },
+    { immediate: true }
+  )
+}
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0B'

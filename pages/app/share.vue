@@ -112,7 +112,7 @@
                     <span class="rounded-full bg-white/10 px-3 py-1 text-paper-oklch/60">
                       {{ link.hasPassword ? '비밀번호' : '공개' }}
                     </span>
-                    <button type="button" class="tap-area rounded-full px-3 py-1 text-paper-oklch/55 hover:bg-white/10" @click="deleteLink(link.id)">
+                    <button type="button" class="tap-area rounded-full px-3 py-1 text-paper-oklch/55 hover:bg-white/10" @click="requestDeleteLink(link)">
                       제거
                     </button>
                   </div>
@@ -187,6 +187,48 @@
       </div>
     </section>
   </main>
+
+  <transition name="fade">
+    <div v-if="deleteDialog.open" class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur">
+      <div class="w-full max-w-md rounded-3xl bg-[#0f0f11] p-6 text-paper-oklch ring-1 ring-white/10">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">공유 링크 삭제</p>
+            <h3 class="text-lg font-semibold">이 링크를 비활성화할까요?</h3>
+          </div>
+          <button
+            type="button"
+            class="tap-area rounded-full p-2 hover:bg-white/10"
+            :disabled="deleteDialog.submitting"
+            @click="closeDeleteDialog"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <p class="mt-4 text-sm text-paper-oklch/70">{{ deleteDialogMessage }}</p>
+        <div class="mt-6 flex items-center justify-end gap-3 text-sm">
+          <button
+            type="button"
+            class="tap-area rounded-full px-4 py-2 text-paper-oklch/70 hover:bg-white/10"
+            :disabled="deleteDialog.submitting"
+            @click="closeDeleteDialog"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="tap-area rounded-full bg-rose-500/90 px-4 py-2 font-semibold text-white hover:bg-rose-500 disabled:opacity-60"
+            :disabled="deleteDialog.submitting"
+            @click="confirmDeleteLink"
+          >
+            {{ deleteDialog.submitting ? '삭제 중...' : '삭제' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
@@ -252,13 +294,44 @@ const createLink = async () => {
   }
 }
 
-const deleteLink = async (id: string) => {
-  if (!confirm('이 공유 링크를 비활성화할까요?')) return
+const deleteDialog = reactive({
+  open: false,
+  linkId: '',
+  linkName: '',
+  submitting: false
+})
+
+const deleteDialogMessage = computed(() => {
+  if (!deleteDialog.linkName) {
+    return '선택된 공유 링크를 비활성화합니다. 계속할까요?'
+  }
+  return `${deleteDialog.linkName} 링크를 비활성화합니다. 계속할까요?`
+})
+
+const requestDeleteLink = (link: ShareLink) => {
+  deleteDialog.open = true
+  deleteDialog.linkId = link.id
+  deleteDialog.linkName = link.fileName
+}
+
+const closeDeleteDialog = () => {
+  if (deleteDialog.submitting) return
+  deleteDialog.open = false
+  deleteDialog.linkId = ''
+  deleteDialog.linkName = ''
+}
+
+const confirmDeleteLink = async () => {
+  if (!deleteDialog.linkId) return
+  deleteDialog.submitting = true
   try {
-    await requestFetch(`/api/share-links/${id}`, { method: 'DELETE' })
+    await requestFetch(`/api/share-links/${deleteDialog.linkId}`, { method: 'DELETE' })
     await refreshShareLinks()
+    closeDeleteDialog()
   } catch (error) {
     alert(getErrorMessage(error) || '공유 링크를 삭제할 수 없습니다.')
+  } finally {
+    deleteDialog.submitting = false
   }
 }
 

@@ -53,10 +53,17 @@
                 <p class="text-paper-oklch">파일을 끌어놓거나 업로드 버튼을 눌러주세요</p>
                 <p class="text-xs text-paper-oklch/50">선택 즉시 AES-256으로 암호화되어 서버에 저장됩니다.</p>
               </div>
-              <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-white/90 px-6 py-2 text-xs font-semibold text-black transition hover:bg-white">
-                파일 선택
-                <input type="file" class="hidden" multiple @change="handleFiles" />
-              </label>
+              <div class="flex flex-wrap items-center justify-center gap-3">
+                <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-white/90 px-6 py-2 text-xs font-semibold text-black transition hover:bg-white">
+                  파일 선택
+                  <input type="file" class="hidden" multiple @change="handleFiles" />
+                </label>
+                <label class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-white/10 px-6 py-2 text-xs font-semibold text-paper-oklch/80 ring-1 ring-surface transition hover:bg-white/15">
+                  폴더 선택
+                  <input type="file" class="hidden" multiple webkitdirectory directory @change="handleFolderSelection" />
+                </label>
+              </div>
+              <p class="text-[11px] text-paper-oklch/50">폴더 업로드 시 구조가 자동으로 루트에 생성됩니다.</p>
             </div>
           </div>
 
@@ -146,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { nanoid } from 'nanoid'
 import { getErrorMessage } from '~/utils/errorMessage'
 import type { StoredFile, StoredFolder } from '~/types/storage'
@@ -167,10 +174,12 @@ type UploadItem = {
   uploadType?: 'single' | 'chunked'
   sessionId?: string
   shouldCancel?: boolean
+  relativeDirectory?: string | null
 }
 
 type FilesResponse = { data: StoredFile[] }
 type FoldersResponse = { data: StoredFolder[] }
+type QueuedFileEntry = { file: File; relativeDirectory?: string | null }
 
 const requestFetch = useRequestFetch()
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024
@@ -193,6 +202,85 @@ const { data: foldersData, refresh: refreshFolders } = await useFetch<FoldersRes
 
 const recentUploads = computed(() => data.value?.data.slice(0, 3) ?? [])
 const folders = computed(() => foldersData.value?.data ?? [])
+
+const folderPathCache = new Map<string, string | null>()
+const pendingFolderCreates = new Map<string, Promise<string | null>>()
+
+const rebuildFolderCache = () => {
+  folderPathCache.clear()
+  folderPathCache.set('/', null)
+  folders.value.forEach(folder => {
+    folderPathCache.set(folder.path || '/', folder.id)
+  })
+}
+
+watch(
+  () => folders.value,
+  () => {
+    rebuildFolderCache()
+  },
+  { immediate: true }
+)
+
+const ensureFolderPath = async (relativePath: string): Promise<string | null> => {
+  const normalized = normalizeRelativeDirectory(relativePath)
+  if (!normalized) return null
+  const segments = normalized.split('/').filter(Boolean)
+  if (!segments.length) return null
+  let parentId: string | null = null
+  const builtSegments: string[] = []
+  for (const segment of segments) {
+    builtSegments.push(segment)
+    const canonicalPath = `/${builtSegments.join('/')}`
+    let cachedId = folderPathCache.get(canonicalPath) ?? null
+    if (cachedId) {
+      parentId = cachedId
+      continue
+    }
+    try {
+      cachedId = await createFolderForPath(segment, parentId, canonicalPath)
+      parentId = cachedId
+    } catch (error) {
+      throw error
+    }
+  }
+  return parentId
+}
+
+const createFolderForPath = (name: string, parentId: string | null, canonicalPath: string) => {
+  const pending = pendingFolderCreates.get(canonicalPath)
+  if (pending) {
+    return pending
+  }
+  const promise = (async () => {
+    const response = await requestFetch<{ data: StoredFolder }>('/api/folders', {
+      method: 'POST',
+      body: { name, parentId: parentId ?? null }
+    })
+    const folder = response?.data
+    if (!folder) {
+      throw new Error('폴더를 생성할 수 없습니다.')
+    }
+    folderPathCache.set(folder.path || canonicalPath, folder.id)
+    if (!foldersData.value) {
+      foldersData.value = { data: [folder] }
+    } else if (Array.isArray(foldersData.value.data)) {
+      foldersData.value.data = [...foldersData.value.data, folder]
+    } else {
+      foldersData.value.data = [folder]
+    }
+    return folder.id
+  })()
+    .catch(error => {
+      throw error
+    })
+    .finally(() => {
+      pendingFolderCreates.delete(canonicalPath)
+    })
+
+  pendingFolderCreates.set(canonicalPath, promise)
+  return promise
+}
 const selectedFolderOption = computed({
   get: () => (targetFolderId.value === null ? 'root' : targetFolderId.value || 'root'),
   set: (value: string) => {
@@ -226,29 +314,132 @@ const abortActiveRequests = (uploadId: string) => {
   activeRequests.delete(uploadId)
 }
 
-const queueFiles = (fileList: FileList | File[]) => {
-  const files = Array.from(fileList)
-  if (!files.length) return
-  const newItems: UploadItem[] = files.map(file => ({
-    id: nanoid(8),
-    name: file.name,
-    size: file.size,
-    progress: 0,
-    status: 'pending',
-    file,
-    folderId: targetFolderId.value,
-    uploadType: file.size >= CHUNK_UPLOAD_THRESHOLD_BYTES ? 'chunked' : 'single',
-    shouldCancel: false
-  }))
+const normalizeRelativeDirectory = (value?: string | null) => {
+  if (!value) return null
+  const cleaned = value.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
+  return cleaned || null
+}
+
+const relativeDirectoryFromFile = (file: File) => {
+  const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
+  if (!relativePath) return null
+  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+  const parts = normalized.split('/')
+  if (parts.length <= 1) return null
+  parts.pop()
+  return normalizeRelativeDirectory(parts.join('/'))
+}
+
+const relativeDirFromFullPath = (fullPath?: string | null, isDirectory = false) => {
+  if (!fullPath) return null
+  const normalized = fullPath.replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!normalized) return null
+  const parts = normalized.split('/').filter(Boolean)
+  if (!parts.length) return null
+  if (!isDirectory) {
+    parts.pop()
+  }
+  if (!parts.length) return null
+  return normalizeRelativeDirectory(parts.join('/'))
+}
+
+const queueEntries = (entries: QueuedFileEntry[]) => {
+  if (!entries.length) return
+  const newItems: UploadItem[] = entries.map(({ file, relativeDirectory }) => {
+    const normalizedDirectory =
+      relativeDirectory !== undefined ? normalizeRelativeDirectory(relativeDirectory) : relativeDirectoryFromFile(file)
+    return {
+      id: nanoid(8),
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: 'pending' as const,
+      file,
+      folderId: normalizedDirectory ? null : targetFolderId.value,
+      relativeDirectory: normalizedDirectory,
+      uploadType: file.size >= CHUNK_UPLOAD_THRESHOLD_BYTES ? 'chunked' : 'single',
+      shouldCancel: false
+    }
+  })
 
   uploads.value = [...uploads.value, ...newItems]
   void processQueue()
 }
 
+const queueFilesFromList = (fileList: FileList | File[]) => {
+  const files = Array.from(fileList)
+  if (!files.length) return
+  queueEntries(files.map(file => ({ file })))
+}
+
+const traverseFileSystemEntry = (entry: FileSystemEntry): Promise<QueuedFileEntry[]> => {
+  return new Promise((resolve, reject) => {
+    if (entry.isFile) {
+      ;(entry as FileSystemFileEntry).file(
+        file => {
+          resolve([{ file, relativeDirectory: relativeDirFromFullPath(entry.fullPath, false) }])
+        },
+        error => reject(error)
+      )
+      return
+    }
+
+    if (entry.isDirectory) {
+      const directory = entry as FileSystemDirectoryEntry
+      const reader = directory.createReader()
+      const results: QueuedFileEntry[] = []
+      const readBatch = () => {
+        reader.readEntries(
+          batch => {
+            if (!batch.length) {
+              resolve(results)
+              return
+            }
+            Promise.all(batch.map(child => traverseFileSystemEntry(child)))
+              .then(children => {
+                children.forEach(childEntries => results.push(...childEntries))
+                readBatch()
+              })
+              .catch(reject)
+          },
+          error => reject(error)
+        )
+      }
+      readBatch()
+      return
+    }
+
+    resolve([])
+  })
+}
+
+const extractEntriesFromDataTransfer = async (dataTransfer: DataTransfer): Promise<QueuedFileEntry[] | null> => {
+  const items = dataTransfer.items
+  if (!items || !items.length) return null
+  const entryPromises: Promise<QueuedFileEntry[]>[] = []
+  Array.from(items).forEach(item => {
+    if (item.kind !== 'file') return
+    const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => FileSystemEntry | null }).webkitGetAsEntry?.()
+    if (entry) {
+      entryPromises.push(traverseFileSystemEntry(entry))
+    }
+  })
+  if (!entryPromises.length) return null
+  const results = await Promise.all(entryPromises)
+  return results.flat()
+}
+
 const handleFiles = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
-  queueFiles(input.files)
+  queueFilesFromList(input.files)
+  input.value = ''
+}
+
+const handleFolderSelection = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.length) return
+  queueFilesFromList(input.files)
   input.value = ''
 }
 
@@ -270,13 +461,24 @@ const handleDragLeave = (event: DragEvent) => {
   }
 }
 
-const handleDrop = (event: DragEvent) => {
+const handleDrop = async (event: DragEvent) => {
   event.preventDefault()
   dragDepth = 0
   dragActive.value = false
-  const files = event.dataTransfer?.files
+  const dataTransfer = event.dataTransfer ?? null
+  if (!dataTransfer) return
+  try {
+    const entries = await extractEntriesFromDataTransfer(dataTransfer)
+    if (entries?.length) {
+      queueEntries(entries)
+      return
+    }
+  } catch (error) {
+    console.warn('Failed to read dropped directories', error)
+  }
+  const files = dataTransfer.files
   if (files?.length) {
-    queueFiles(files)
+    queueFilesFromList(files)
   }
 }
 
@@ -304,6 +506,16 @@ const processQueue = async () => {
   try {
     for (const item of uploads.value) {
       if (item.status !== 'pending') continue
+      if (item.relativeDirectory && !item.folderId) {
+        try {
+          item.folderId = await ensureFolderPath(item.relativeDirectory)
+        } catch (error) {
+          item.status = 'error'
+          item.progress = 0
+          item.message = getErrorMessage(error) || '폴더를 생성할 수 없습니다.'
+          continue
+        }
+      }
       item.status = 'uploading'
       try {
         if (item.uploadType === 'chunked') {
