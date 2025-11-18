@@ -18,4 +18,18 @@
   </main>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+const auth = useAuth()
+
+if (auth.status.value === 'idle') {
+  try {
+    await auth.refresh()
+  } catch {
+    // ignore if refresh fails; user will stay on landing page
+  }
+}
+
+if (auth.user.value) {
+  await navigateTo('/app', { replace: true })
+}
+</script>
