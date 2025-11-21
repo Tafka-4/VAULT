@@ -169,7 +169,7 @@
               <span>경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span></span>
               <div class="flex items-center gap-2">
                 <button
-                  v-if="folderScope !== 'all'"
+                  v-if="folderScope !== 'root'"
                   type="button"
                   class="tap-area inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-paper-oklch/70 hover:bg-white/10"
                   @click="goToParentFolder"
@@ -178,14 +178,6 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7" />
                   </svg>
                   상위
-                </button>
-                <button
-                  v-if="folderScope !== 'all'"
-                  type="button"
-                  class="tap-area rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-paper-oklch/70 hover:bg-white/10"
-                  @click="selectFolderScope('all')"
-                >
-                  전체
                 </button>
               </div>
             </div>
@@ -341,7 +333,7 @@ type PinnedEntry = { id: string; type: 'file' | 'folder' }
 
 const search = ref('')
 const quotaBytes = 512 * 1024 * 1024 * 1024 // 512GB
-const folderScope = ref<'all' | 'root' | string>('all')
+const folderScope = ref<'root' | string>('root')
 const requestFetch = useRequestFetch()
 
 const { data, pending, refresh } = await useFetch<FilesResponse>('/api/files', {
@@ -470,18 +462,16 @@ const toggleFilePin = (file: StoredFile) => togglePinEntry('file', file.id)
 const toggleFolderPin = (folder: StoredFolder) => togglePinEntry('folder', folder.id)
 
 const folderScopeFilter = computed(() => {
-  if (folderScope.value === 'all') return undefined
   if (folderScope.value === 'root') return null
   return folderScope.value
 })
 
-const folderParentFilter = computed(() => (folderScope.value === 'root' || folderScope.value === 'all' ? null : folderScope.value))
+const folderParentFilter = computed(() => (folderScope.value === 'root' ? null : folderScope.value))
 
 const scopedFolders = computed(() => folders.value.filter(folder => folder.parentId === folderParentFilter.value))
 
 const scopedFiles = computed(() => {
   const target = folderScopeFilter.value
-  if (target === undefined) return files.value
   if (target === null) return files.value.filter(file => file.folderId == null)
   return files.value.filter(file => file.folderId === target)
 })
@@ -508,12 +498,10 @@ const totalEntriesCount = computed(() => filteredFolders.value.length + filtered
 const recentFiles = computed(() => [...files.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5))
 
 const selectedFolder = computed(() => {
-  if (folderScope.value === 'all') return null
   if (folderScope.value === 'root') return { id: 'root', name: '루트', path: '/' }
   return folders.value.find(folder => folder.id === folderScope.value) ?? null
 })
 const currentPathLabel = computed(() => {
-  if (folderScope.value === 'all') return ''
   if (folderScope.value === 'root') return '/'
   return selectedFolder.value?.path ?? '/'
 })
@@ -578,7 +566,7 @@ const deleteFolder = async (folderId: string) => {
   try {
     await requestFetch(`/api/folders/${folderId}`, { method: 'DELETE' })
     if (folderScope.value === folderId) {
-      folderScope.value = 'all'
+      folderScope.value = 'root'
     }
     await Promise.all([refreshFolders(), refresh()])
   } catch (error) {
@@ -646,7 +634,7 @@ const confirmDeletion = async () => {
         clearingAll.value = true
         await requestFetch('/api/files/purge', { method: 'DELETE' })
         await Promise.all([refreshFolders(), refresh()])
-        folderScope.value = 'all'
+        folderScope.value = 'root'
       }
     }
   } catch (error) {
@@ -666,7 +654,7 @@ const newFolderName = ref('')
 const creatingFolder = ref(false)
 
 const currentParentId = computed(() => {
-  if (folderScope.value === 'all' || folderScope.value === 'root') return null
+  if (folderScope.value === 'root') return null
   const exists = folders.value.some(folder => folder.id === folderScope.value)
   return exists ? folderScope.value : null
 })
@@ -701,19 +689,15 @@ const submitCreateFolder = async () => {
   }
 }
 
-const selectFolderScope = (scope: 'all' | 'root' | string) => {
+const selectFolderScope = (scope: 'root' | string) => {
   folderScope.value = scope
 }
 
 const goToParentFolder = () => {
-  if (folderScope.value === 'all') return
-  if (folderScope.value === 'root') {
-    folderScope.value = 'all'
-    return
-  }
+  if (folderScope.value === 'root') return
   const current = folders.value.find(folder => folder.id === folderScope.value)
   if (!current) {
-    folderScope.value = 'all'
+    folderScope.value = 'root'
     return
   }
   folderScope.value = current.parentId ?? 'root'

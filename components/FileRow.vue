@@ -19,7 +19,7 @@
         <p class="truncate text-xs text-paper-oklch/60" :title="detail">{{ detail }}</p>
       </div>
     </div>
-    <div class="ml-4 flex items-center gap-2">
+    <div class="ml-4 flex items-center gap-2 pr-2 sm:pr-3">
       <button
         v-if="props.pinnable"
         type="button"
