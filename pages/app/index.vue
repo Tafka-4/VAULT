@@ -156,6 +156,14 @@
               >
                 새로고침
               </button>
+              <button
+                type="button"
+                class="tap-area rounded-xl bg-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-50 ring-1 ring-rose-500/50 hover:bg-rose-500/25 disabled:opacity-60"
+                :disabled="clearingAll"
+                @click="requestDeleteAllFiles"
+              >
+                전체 삭제
+              </button>
             </div>
             <div v-if="currentPathLabel" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-paper-oklch/60">
               <span>경로: <span class="font-semibold text-paper-oklch/80">{{ currentPathLabel }}</span></span>
@@ -514,7 +522,7 @@ const deleteState = ref<Record<string, boolean>>({})
 const deleteFolderState = ref<Record<string, boolean>>({})
 const confirmDialog = reactive({
   open: false,
-  type: null as 'file' | 'folder' | null,
+  type: null as 'file' | 'folder' | 'all' | null,
   targetId: '',
   targetName: '',
   submitting: false
@@ -523,9 +531,12 @@ const confirmMessage = computed(() => {
   if (!confirmDialog.type) return ''
   return confirmDialog.type === 'file'
     ? `"${confirmDialog.targetName}" 파일을 삭제하시겠습니까?`
-    : `"${confirmDialog.targetName}" 폴더를 삭제하시겠습니까? 폴더의 파일은 루트로 이동합니다.`
+    : confirmDialog.type === 'folder'
+      ? `"${confirmDialog.targetName}" 폴더와 그 안의 모든 파일을 삭제하시겠습니까?`
+      : '저장된 모든 파일을 삭제하시겠습니까? 즐겨찾기도 함께 지워집니다.'
 })
 const draggingFileId = ref<string | null>(null)
+const clearingAll = ref(false)
 
 const setDeleteState = (id: string, value: boolean) => {
   if (value) {
@@ -606,6 +617,13 @@ const requestDeleteFolder = (folder: StoredFolder) => {
   confirmDialog.targetName = folder.name
 }
 
+const requestDeleteAllFiles = () => {
+  confirmDialog.open = true
+  confirmDialog.type = 'all'
+  confirmDialog.targetId = '*'
+  confirmDialog.targetName = '전체 파일'
+}
+
 const closeConfirmDialog = () => {
   if (confirmDialog.submitting) return
   confirmDialog.open = false
@@ -617,17 +635,29 @@ const closeConfirmDialog = () => {
 const confirmDeletion = async () => {
   if (!confirmDialog.type || !confirmDialog.targetId) return
   confirmDialog.submitting = true
+  let errorMessage: string | null = null
   try {
     if (confirmDialog.type === 'file') {
       await deleteFile(confirmDialog.targetId)
     } else {
-      await deleteFolder(confirmDialog.targetId)
+      if (confirmDialog.type === 'folder') {
+        await deleteFolder(confirmDialog.targetId)
+      } else {
+        clearingAll.value = true
+        await requestFetch('/api/files/purge', { method: 'DELETE' })
+        await Promise.all([refreshFolders(), refresh()])
+        folderScope.value = 'all'
+      }
     }
-    closeConfirmDialog()
   } catch (error) {
-    alert(getErrorMessage(error) || '삭제에 실패했습니다.')
+    errorMessage = getErrorMessage(error) || '삭제에 실패했습니다.'
   } finally {
     confirmDialog.submitting = false
+    clearingAll.value = false
+    if (errorMessage) {
+      alert(errorMessage)
+    }
+    closeConfirmDialog()
   }
 }
 

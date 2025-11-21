@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import db from '../utils/db';
+import { deleteFilesInFolders } from './fileService';
 
 export type FolderRecord = {
   id: string;
@@ -36,6 +37,11 @@ const listFoldersByParentStmt = db.prepare(`
 `);
 
 const deleteFolderStmt = db.prepare('DELETE FROM folders WHERE id = ? AND userId = ?');
+const listDescendantIdsByPathStmt = db.prepare(`
+  SELECT id
+  FROM folders
+  WHERE userId = ? AND path LIKE ? ESCAPE '\\'
+`);
 
 export function createFolder(userId: string, name: string, parentId: string | null = null): FolderRecord {
   const trimmed = name.trim();
@@ -104,6 +110,16 @@ export function deleteFolder(userId: string, folderId: string): boolean {
   if (!folder) {
     throw new Error('폴더를 찾을 수 없습니다.');
   }
+  const descendantPattern = `${escapeLike(folder.path)}/%`;
+  const descendantRows = listDescendantIdsByPathStmt.all(userId, descendantPattern) as Array<{ id: string }>;
+  const descendantIds = descendantRows.map((row) => row.id);
+  const targetFolderIds = [folderId, ...descendantIds];
+  deleteFilesInFolders(userId, targetFolderIds);
+
   const res = deleteFolderStmt.run(folderId, userId);
   return res.changes > 0;
+}
+
+function escapeLike(value: string) {
+  return value.replace(/([%_\\])/g, '\\$1');
 }

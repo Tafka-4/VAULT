@@ -94,6 +94,8 @@ const sumFilesByUserStmt = db.prepare(`
 `);
 
 const deleteFileStmt = db.prepare(`DELETE FROM files WHERE id = ? AND userId = ?`);
+const deleteFilesByFolderStmt = db.prepare(`DELETE FROM files WHERE userId = ? AND folderId = ?`);
+const deleteFilesByUserStmt = db.prepare(`DELETE FROM files WHERE userId = ?`);
 
 const updateFolderStmt = db.prepare(`
   UPDATE files
@@ -197,6 +199,24 @@ export function getUserStoredBytes(userId: string): number {
 export function deleteFile(fileId: string, userId: string): boolean {
   const res = deleteFileStmt.run(fileId, userId);
   return res.changes > 0;
+}
+
+export function deleteFilesInFolders(userId: string, folderIds: string[]): number {
+  if (!folderIds.length) return 0;
+  const tx = db.transaction(() => {
+    let total = 0;
+    for (const folderId of folderIds) {
+      const res = deleteFilesByFolderStmt.run(userId, folderId);
+      total += res.changes ?? 0;
+    }
+    return total;
+  });
+  return tx();
+}
+
+export function deleteAllFilesForUser(userId: string): number {
+  const res = deleteFilesByUserStmt.run(userId);
+  return res.changes ?? 0;
 }
 
 export function getFileChunks(fileId: string): FileChunkRecord[] {
