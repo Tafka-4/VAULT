@@ -15,8 +15,8 @@
         <Icon :name="icon" />
       </div>
       <div class="min-w-0">
-        <p class="truncate font-medium">{{ name }}</p>
-        <p class="text-xs text-paper-oklch/60">{{ detail }}</p>
+        <p class="truncate font-medium" :title="name">{{ name }}</p>
+        <p class="truncate text-xs text-paper-oklch/60" :title="detail">{{ detail }}</p>
       </div>
     </div>
     <div class="ml-4 flex items-center gap-2">

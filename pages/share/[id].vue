@@ -4,9 +4,9 @@
     <div v-if="metadata" class="w-full max-w-3xl space-y-6 rounded-[2rem] bg-white/5 p-8 ring-1 ring-white/15">
       <div class="space-y-2 text-center">
         <p class="text-xs uppercase tracking-[0.32em] text-white/60">공유 파일</p>
-        <h1 class="text-2xl font-semibold">{{ metadata.fileName }}</h1>
+        <h1 class="break-words text-2xl font-semibold" :title="metadata.fileName">{{ metadata.fileName }}</h1>
         <p class="text-sm text-white/65">{{ formatBytes(metadata.fileSize) }}</p>
-        <p v-if="metadata.folderPath" class="text-xs text-white/45">위치: {{ metadata.folderPath }}</p>
+        <p v-if="metadata.folderPath" class="break-words text-xs text-white/45" :title="metadata.folderPath">위치: {{ metadata.folderPath }}</p>
       </div>
       <div class="rounded-[1.25rem] bg-black/40 p-4 text-sm text-white/70 space-y-1">
         <p>

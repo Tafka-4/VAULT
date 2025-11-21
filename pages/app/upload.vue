@@ -83,78 +83,80 @@
               </div>
             </div>
             <template v-if="uploads.length">
-              <div v-if="folderUploadGroups.length" class="space-y-3">
-                <div
-                  v-for="group in folderUploadGroups"
-                  :key="group.id"
-                  class="space-y-2 rounded-2xl bg-black/35 px-4 py-4 text-sm ring-1 ring-surface"
-                >
-                  <div class="flex items-center justify-between gap-4">
-                    <div class="min-w-0">
-                      <p class="truncate font-semibold" :title="group.name">{{ formatDisplayName(group.name) }}</p>
-                      <p class="text-xs text-paper-oklch/55">{{ group.count }}개 파일 · {{ formatBytes(group.totalSize) }}</p>
-                    </div>
-                    <span
-                      class="text-xs font-semibold"
-                      :class="group.status === 'error' ? 'text-red-200/80' : 'text-paper-oklch/45'"
-                    >
-                      {{ statusLabel(group.status) }}
-                    </span>
-                  </div>
-                  <div class="h-1.5 rounded-full bg-white/10">
-                    <div
-                      class="h-full rounded-full transition-all"
-                      :class="group.status === 'error' ? 'bg-red-300/80' : 'bg-white/70'"
-                      :style="{ width: `${group.progress}%` }"
-                    ></div>
-                  </div>
-                  <p class="text-xs text-paper-oklch/55">
-                    {{ group.progress }}% 완료 ({{ formatBytes(group.completedBytes) }} / {{ formatBytes(group.totalSize) }})
-                  </p>
-                </div>
-              </div>
-              <div v-if="standaloneUploads.length" class="space-y-3">
-                <div
-                  v-for="item in standaloneUploads"
-                  :key="item.id"
-                  class="space-y-2 rounded-2xl bg-black/35 px-4 py-3 text-sm ring-1 ring-surface"
-                >
-                  <div class="flex items-center justify-between gap-4">
-                    <div class="min-w-0">
-                      <p class="truncate font-medium" :title="item.name">{{ formatDisplayName(item.name) }}</p>
-                      <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }}</p>
-                    </div>
-                    <span
-                      class="text-xs font-semibold"
-                      :class="item.status === 'error' ? 'text-red-200/80' : 'text-paper-oklch/45'"
-                    >
-                      {{ statusLabel(item.status) }}
-                    </span>
-                  </div>
-                  <div class="h-1.5 rounded-full bg-white/10">
-                    <div
-                      class="h-full rounded-full transition-all"
-                      :class="item.status === 'error' ? 'bg-red-300/80' : 'bg-white/70'"
-                      :style="{ width: `${item.progress}%` }"
-                    ></div>
-                  </div>
-                  <p v-if="item.speed" class="text-xs text-paper-oklch/55">
-                    전송 속도: {{ item.speed }}
-                  </p>
-                  <p v-if="item.message && item.status === 'error'" class="text-xs text-red-200/80">
-                    {{ item.message }}
-                  </p>
+              <div class="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                <div v-if="folderUploadGroups.length" class="space-y-3">
                   <div
-                    v-if="item.status === 'pending' || item.status === 'uploading'"
-                    class="flex justify-end"
+                    v-for="group in folderUploadGroups"
+                    :key="group.id"
+                    class="space-y-2 rounded-2xl bg-black/35 px-4 py-4 text-sm ring-1 ring-surface"
                   >
-                    <button
-                      type="button"
-                      class="tap-area rounded-full px-3 py-1 text-xs text-paper-oklch/70 hover:bg-white/10"
-                      @click="cancelUpload(item.id)"
+                    <div class="flex items-center justify-between gap-4">
+                      <div class="min-w-0">
+                        <p class="truncate font-semibold" :title="group.name">{{ formatDisplayName(group.name) }}</p>
+                        <p class="text-xs text-paper-oklch/55">{{ group.count }}개 파일 · {{ formatBytes(group.totalSize) }}</p>
+                      </div>
+                      <span
+                        class="text-xs font-semibold"
+                        :class="group.status === 'error' ? 'text-red-200/80' : 'text-paper-oklch/45'"
+                      >
+                        {{ statusLabel(group.status) }}
+                      </span>
+                    </div>
+                    <div class="h-1.5 rounded-full bg-white/10">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="group.status === 'error' ? 'bg-red-300/80' : 'bg-white/70'"
+                        :style="{ width: `${group.progress}%` }"
+                      ></div>
+                    </div>
+                    <p class="text-xs text-paper-oklch/55">
+                      {{ group.progress }}% 완료 ({{ formatBytes(group.completedBytes) }} / {{ formatBytes(group.totalSize) }})
+                    </p>
+                  </div>
+                </div>
+                <div v-if="standaloneUploads.length" class="space-y-3">
+                  <div
+                    v-for="item in standaloneUploads"
+                    :key="item.id"
+                    class="space-y-2 rounded-2xl bg-black/35 px-4 py-3 text-sm ring-1 ring-surface"
+                  >
+                    <div class="flex items-center justify-between gap-4">
+                      <div class="min-w-0">
+                        <p class="truncate font-medium" :title="item.name">{{ formatDisplayName(item.name) }}</p>
+                        <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }}</p>
+                      </div>
+                      <span
+                        class="text-xs font-semibold"
+                        :class="item.status === 'error' ? 'text-red-200/80' : 'text-paper-oklch/45'"
+                      >
+                        {{ statusLabel(item.status) }}
+                      </span>
+                    </div>
+                    <div class="h-1.5 rounded-full bg-white/10">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="item.status === 'error' ? 'bg-red-300/80' : 'bg-white/70'"
+                        :style="{ width: `${item.progress}%` }"
+                      ></div>
+                    </div>
+                    <p v-if="item.speed" class="text-xs text-paper-oklch/55">
+                      전송 속도: {{ item.speed }}
+                    </p>
+                    <p v-if="item.message && item.status === 'error'" class="text-xs text-red-200/80">
+                      {{ item.message }}
+                    </p>
+                    <div
+                      v-if="item.status === 'pending' || item.status === 'uploading'"
+                      class="flex justify-end"
                     >
-                      취소
-                    </button>
+                      <button
+                        type="button"
+                        class="tap-area rounded-full px-3 py-1 text-xs text-paper-oklch/70 hover:bg-white/10"
+                        @click="cancelUpload(item.id)"
+                      >
+                        취소
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -182,11 +184,13 @@
                 :key="item.id"
                 class="flex items-center justify-between rounded-xl bg-black/30 px-3 py-3 ring-1 ring-surface"
               >
-                <div>
-                  <p class="font-medium">{{ item.name }}</p>
-                  <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }} · {{ new Date(item.updatedAt).toLocaleString('ko-KR') }}</p>
+                <div class="min-w-0">
+                  <p class="truncate font-medium" :title="item.name">{{ item.name }}</p>
+                  <p class="truncate text-xs text-paper-oklch/55" :title="new Date(item.updatedAt).toLocaleString('ko-KR')">
+                    {{ formatBytes(item.size) }} · {{ new Date(item.updatedAt).toLocaleString('ko-KR') }}
+                  </p>
                 </div>
-                <NuxtLink :to="`/app/file-preview/${item.id}`" class="text-xs text-paper-oklch/60 hover:text-paper-oklch/80">보기</NuxtLink>
+                <NuxtLink :to="`/app/file-preview/${item.id}`" class="whitespace-nowrap text-xs text-paper-oklch/60 hover:text-paper-oklch/80">보기</NuxtLink>
               </div>
             </div>
             <p v-else class="text-xs text-paper-oklch/55">아직 업로드 기록이 없습니다.</p>
@@ -286,6 +290,7 @@ type UploadItem = {
   relativeDirectory?: string | null
   folderRoot?: string | null
   loadedBytes: number
+  finishedAt?: number
 }
 
 type FilesResponse = { data: StoredFile[] }
@@ -307,6 +312,8 @@ const requestFetch = useRequestFetch()
 const CHUNK_SIZE_BYTES = 10 * 1024 * 1024
 const CHUNK_UPLOAD_THRESHOLD_BYTES = CHUNK_SIZE_BYTES
 const CHUNK_UPLOAD_CONCURRENCY = 24
+const COMPLETED_RETENTION_MS = 4000
+const CLEANUP_INTERVAL_MS = 1200
 
 const uploads = ref<UploadItem[]>([])
 const uploading = ref(false)
@@ -314,6 +321,7 @@ const dragActive = ref(false)
 let dragDepth = 0
 const targetFolderId = ref<string | null>(null)
 const showDetailsModal = ref(false)
+let cleanupTimer: number | null = null
 
 const { data, refresh: refreshFiles } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-upload'
@@ -382,13 +390,37 @@ const folderUploadGroups = computed<UploadGroupSummary[]>(() => {
 const standaloneUploads = computed(() => uploads.value.filter(item => !item.folderRoot))
 
 watch(
-  () => uploads.value.length,
-  count => {
-    if (!count) {
+  () => uploads.value.filter(item => item.status === 'pending' || item.status === 'uploading').length,
+  activeCount => {
+    if (!activeCount) {
       showDetailsModal.value = false
     }
   }
 )
+
+const cleanupCompletedUploads = () => {
+  if (!process.client) return
+  const cutoff = Date.now() - COMPLETED_RETENTION_MS
+  uploads.value = uploads.value.filter(item => {
+    if (item.status === 'pending' || item.status === 'uploading') return true
+    if (!item.finishedAt) return true
+    return item.finishedAt > cutoff
+  })
+  const hasFinished = uploads.value.some(item => item.status !== 'pending' && item.status !== 'uploading')
+  if (hasFinished && cleanupTimer === null) {
+    cleanupTimer = window.setTimeout(() => {
+      cleanupTimer = null
+      cleanupCompletedUploads()
+    }, CLEANUP_INTERVAL_MS)
+  }
+}
+
+const setFinishedState = (item: UploadItem, status: Extract<UploadStatus, 'done' | 'error'>, message?: string) => {
+  item.status = status
+  item.message = message
+  item.finishedAt = Date.now()
+  cleanupCompletedUploads()
+}
 
 const ensureFolderPath = async (relativePath: string): Promise<string | null> => {
   const normalized = normalizeRelativeDirectory(relativePath)
@@ -667,9 +699,9 @@ const cancelUpload = async (itemId: string) => {
   item.shouldCancel = true
   if (item.status === 'uploading') {
     abortActiveRequests(item.id)
-    item.status = 'error'
     item.progress = 0
-    item.message = '취소됨'
+    item.loadedBytes = 0
+    setFinishedState(item, 'error', '취소됨')
     if (item.uploadType === 'chunked' && item.sessionId) {
       requestFetch(`/api/uploads/${item.sessionId}`, { method: 'DELETE' }).catch(() => {})
     }
@@ -705,20 +737,18 @@ const processQueue = async () => {
           await uploadSingleFile(item)
         }
         item.progress = 100
-        item.status = 'done'
-         item.loadedBytes = item.size
-        item.message = '완료'
+        item.loadedBytes = item.size
+        setFinishedState(item, 'done', '완료')
         try {
           await refreshFiles()
         } catch (refreshError) {
           console.warn('Failed to refresh files after upload', refreshError)
         }
       } catch (error) {
-        item.status = 'error'
         item.progress = 0
         item.loadedBytes = 0
         const message = getErrorMessage(error)
-        item.message = item.shouldCancel ? '취소됨' : (message || '업로드 실패')
+        setFinishedState(item, 'error', item.shouldCancel ? '취소됨' : (message || '업로드 실패'))
       }
     }
   } finally {

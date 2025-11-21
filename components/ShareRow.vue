@@ -7,9 +7,9 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 20a6 6 0 1118 0H3z" />
         </svg>
       </div>
-      <div>
-        <p class="font-medium">{{ name }}</p>
-        <p class="text-xs text-paper-oklch/60">{{ role }}</p>
+      <div class="min-w-0">
+        <p class="truncate font-medium" :title="name">{{ name }}</p>
+        <p class="truncate text-xs text-paper-oklch/60" :title="role">{{ role }}</p>
       </div>
     </div>
     <button class="tap-area text-xs rounded-lg px-2 py-1 ring-1 ring-surface hover:bg-white/5">공유 옵션</button>

@@ -104,9 +104,11 @@
                 class="rounded-[1.5rem] bg-black/35 p-4 text-sm ring-1 ring-surface"
               >
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p class="font-semibold">{{ link.fileName }}</p>
-                    <p class="text-xs text-paper-oklch/55">{{ formatBytes(link.fileSize) }} · 만료 {{ formatRelative(link.expiresAt) }}</p>
+                  <div class="min-w-0">
+                    <p class="truncate font-semibold" :title="link.fileName">{{ link.fileName }}</p>
+                    <p class="truncate text-xs text-paper-oklch/55">
+                      {{ formatBytes(link.fileSize) }} · 만료 {{ formatRelative(link.expiresAt) }}
+                    </p>
                   </div>
                   <div class="flex items-center gap-2 text-xs">
                     <span class="rounded-full bg-white/10 px-3 py-1 text-paper-oklch/60">
@@ -144,18 +146,18 @@
                 class="rounded-[1.25rem] bg-black/35 px-4 py-4 ring-1 ring-surface"
               >
                 <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <p class="font-medium">{{ group.folderName || '루트 폴더' }}</p>
-                    <p class="text-xs text-paper-oklch/55">{{ group.folderPath || '/' }}</p>
+                  <div class="min-w-0">
+                    <p class="truncate font-medium" :title="group.folderName || '루트 폴더'">{{ group.folderName || '루트 폴더' }}</p>
+                    <p class="truncate text-xs text-paper-oklch/55" :title="group.folderPath || '/'">{{ group.folderPath || '/' }}</p>
                   </div>
                   <span class="text-xs text-paper-oklch/50">{{ group.files.length }}개 파일</span>
                 </div>
                 <div class="mt-2 space-y-1 text-xs text-paper-oklch/60">
-                  <div v-for="file in group.files.slice(0, 3)" :key="file.id" class="flex items-center justify-between">
-                    <NuxtLink :to="`/app/file-preview/${file.fileId}`" class="truncate hover:text-paper-oklch/80">
+                  <div v-for="file in group.files.slice(0, 3)" :key="file.id" class="flex items-center justify-between gap-2">
+                    <NuxtLink :to="`/app/file-preview/${file.fileId}`" class="min-w-0 flex-1 truncate hover:text-paper-oklch/80" :title="file.fileName">
                       {{ file.fileName }}
                     </NuxtLink>
-                    <span>{{ formatBytes(file.fileSize) }}</span>
+                    <span class="whitespace-nowrap">{{ formatBytes(file.fileSize) }}</span>
                   </div>
                   <p v-if="group.files.length > 3" class="text-right text-paper-oklch/50">외 {{ group.files.length - 3 }}개 더 있음</p>
                 </div>
