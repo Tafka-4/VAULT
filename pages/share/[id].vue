@@ -25,6 +25,56 @@
         <img v-else-if="isImage" :src="previewSrc" :alt="metadata.fileName" class="mx-auto max-h-[420px] rounded-xl object-contain" />
         <p v-else class="text-center text-sm text-white/60">이 파일 형식은 미리보기를 지원하지 않습니다.</p>
       </div>
+      <div v-if="isZipFile && canPreview" class="space-y-3 rounded-[1.25rem] bg-black/35 p-4 text-sm ring-1 ring-white/5">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-white/80">압축 파일 내용</span>
+          <span v-if="zipEntries.length" class="text-xs text-white/50">{{ zipEntries.length }}개 표시</span>
+        </div>
+        <p v-if="zipLoading" class="text-xs text-white/55">목록을 불러오는 중입니다...</p>
+        <p v-else-if="zipError" class="text-xs text-rose-200/80">{{ zipError }}</p>
+        <template v-else>
+          <ul v-if="zipEntries.length" class="space-y-2 text-xs text-white/70">
+            <li
+              v-for="entry in zipEntries"
+              :key="entry.name"
+              class="flex items-center justify-between gap-3 rounded-xl bg-black/45 px-3 py-2 ring-1 ring-white/5"
+            >
+              <div class="flex items-center gap-2 truncate">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="size-3.5 text-white/60"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    v-if="entry.directory"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M3 7h4l2-2h9a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1z"
+                  />
+                  <path
+                    v-else
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M15.5 3.5h-7v17h9V8.5l-2-5z"
+                  />
+                </svg>
+                <span class="truncate">{{ entry.name }}</span>
+              </div>
+              <span class="whitespace-nowrap text-white/55">
+                {{ entry.directory ? '폴더' : formatBytes(entry.uncompressedSize) }}
+              </span>
+            </li>
+          </ul>
+          <p v-else class="text-xs text-white/55">압축 파일이 비어 있습니다.</p>
+          <p v-if="zipTruncated" class="text-[11px] text-white/45">
+            항목이 많아 일부만 표시됩니다.
+          </p>
+        </template>
+      </div>
       <div class="space-y-4">
         <p class="text-sm text-white/70">공유자가 설정한 비밀번호를 입력하면 파일을 다운로드하거나 스트리밍할 수 있습니다.</p>
         <div v-if="metadata.hasPassword" class="space-y-3">
@@ -65,7 +115,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { ZipEntriesPayload, ZipEntrySummary } from '~/types/files'
 import type { PublicShareMetadata } from '~/types/share'
+import { getErrorMessage } from '~/utils/errorMessage'
 
 const route = useRoute()
 const shareId = computed(() => route.params.id as string)
@@ -81,6 +133,12 @@ const verifying = ref(false)
 const verifyMessage = ref('')
 const verifyError = ref('')
 const previewNonce = ref(0)
+const zipEntries = ref<ZipEntrySummary[]>([])
+const zipLoading = ref(false)
+const zipError = ref<string | null>(null)
+const zipTruncated = ref(false)
+const ZIP_MIME_TYPES = new Set(['application/zip', 'application/x-zip-compressed', 'multipart/x-zip'])
+let zipRequestToken = 0
 
 watch(
   metadata,
@@ -102,6 +160,18 @@ watch(password, () => {
   }
   previewNonce.value += 1
 })
+
+watch(
+  () => ({ id: shareId.value, isZip: isZipFile.value, verified: passwordVerified.value, password: password.value }),
+  () => {
+    if (isZipFile.value && (!metadata.value?.hasPassword || passwordVerified.value)) {
+      fetchZipEntries()
+    } else {
+      resetZipState()
+    }
+  },
+  { immediate: true }
+)
 
 const downloadHref = computed(() => {
   if (!metadata.value || (metadata.value.hasPassword && !passwordVerified.value)) return '#'
@@ -129,6 +199,12 @@ const previewSrc = computed(() => {
 const isImage = computed(() => metadata.value?.mimeType.startsWith('image/'))
 const isVideo = computed(() => metadata.value?.mimeType.startsWith('video/'))
 const isAudio = computed(() => metadata.value?.mimeType.startsWith('audio/'))
+const isZipFile = computed(() => {
+  if (!metadata.value) return false
+  const mime = metadata.value.mimeType?.toLowerCase() ?? ''
+  const name = metadata.value.fileName.toLowerCase()
+  return ZIP_MIME_TYPES.has(mime) || name.endsWith('.zip')
+})
 
 const previewComponent = computed(() => {
   if (isVideo.value) return 'video'
@@ -177,6 +253,9 @@ const verifyPassword = async () => {
     passwordVerified.value = true
     verifyMessage.value = '비밀번호가 확인되었습니다.'
     previewNonce.value += 1
+    if (isZipFile.value) {
+      fetchZipEntries()
+    }
   } catch (error) {
     verifyError.value = (error as Error).message
   } finally {
@@ -194,6 +273,43 @@ const downloadFile = () => {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
+}
+
+const resetZipState = () => {
+  zipEntries.value = []
+  zipError.value = null
+  zipTruncated.value = false
+}
+
+const fetchZipEntries = async () => {
+  if (!isZipFile.value) {
+    resetZipState()
+    return
+  }
+  if (metadata.value?.hasPassword && !passwordVerified.value) {
+    resetZipState()
+    return
+  }
+  const currentToken = ++zipRequestToken
+  zipLoading.value = true
+  zipError.value = null
+  const params = new URLSearchParams()
+  if (metadata.value?.hasPassword && password.value) {
+    params.set('password', password.value)
+  }
+  try {
+    const response = await $fetch<{ data: ZipEntriesPayload }>(`/api/public/share/${shareId.value}/zip-entries?${params.toString()}`)
+    if (zipRequestToken !== currentToken) return
+    zipEntries.value = response?.data.entries ?? []
+    zipTruncated.value = Boolean(response?.data.truncated)
+  } catch (error) {
+    if (zipRequestToken !== currentToken) return
+    zipError.value = getErrorMessage(error) || '압축 파일 목록을 불러오지 못했습니다.'
+  } finally {
+    if (zipRequestToken === currentToken) {
+      zipLoading.value = false
+    }
+  }
 }
 
 const formatBytes = (bytes: number) => {

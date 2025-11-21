@@ -397,6 +397,18 @@ const prunePinnedEntries = () => {
 
 watch([files, folders], () => prunePinnedEntries(), { immediate: true })
 
+watch(
+  folders,
+  (list) => {
+    if (folderScope.value === 'root') return
+    const exists = list.some(folder => folder.id === folderScope.value)
+    if (!exists) {
+      folderScope.value = 'root'
+    }
+  },
+  { deep: true }
+)
+
 const isPinned = (type: PinnedEntry['type'], id: string) =>
   pinnedEntries.value.some(entry => entry.type === type && entry.id === id)
 
@@ -521,7 +533,7 @@ const confirmMessage = computed(() => {
     ? `"${confirmDialog.targetName}" 파일을 삭제하시겠습니까?`
     : confirmDialog.type === 'folder'
       ? `"${confirmDialog.targetName}" 폴더와 그 안의 모든 파일을 삭제하시겠습니까?`
-      : '저장된 모든 파일을 삭제하시겠습니까? 즐겨찾기도 함께 지워집니다.'
+      : '저장된 모든 파일과 폴더를 삭제하시겠습니까? 즐겨찾기도 함께 지워집니다.'
 })
 const draggingFileId = ref<string | null>(null)
 const clearingAll = ref(false)
@@ -664,8 +676,8 @@ const openCreateFolderModal = () => {
   showCreateFolderModal.value = true
 }
 
-const closeCreateFolderModal = () => {
-  if (creatingFolder.value) return
+const closeCreateFolderModal = (force = false) => {
+  if (creatingFolder.value && !force) return
   showCreateFolderModal.value = false
 }
 
@@ -675,17 +687,26 @@ const submitCreateFolder = async () => {
     return
   }
   creatingFolder.value = true
+  let errorMessage: string | null = null
   try {
     await requestFetch('/api/folders', {
       method: 'POST',
       body: { name: newFolderName.value, parentId: currentParentId.value }
     })
     await Promise.all([refreshFolders(), refresh()])
-    closeCreateFolderModal()
+    closeCreateFolderModal(true)
   } catch (error) {
-    alert(getErrorMessage(error) || '폴더를 생성할 수 없습니다.')
+    const message = getErrorMessage(error)
+    if (message?.includes('이미')) {
+      errorMessage = '같은 경로에 동일한 이름의 폴더가 이미 있습니다.'
+    } else {
+      errorMessage = message || '폴더를 생성할 수 없습니다.'
+    }
   } finally {
     creatingFolder.value = false
+    if (errorMessage) {
+      alert(errorMessage)
+    }
   }
 }
 

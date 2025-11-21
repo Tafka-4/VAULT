@@ -40,8 +40,29 @@
               <h2 class="text-base font-semibold">활성 공유 링크</h2>
               <span class="text-xs text-paper-oklch/50">{{ shareLinks.length }}개</span>
             </div>
-            <form class="mt-4 grid gap-3 text-sm text-paper-oklch/80" @submit.prevent="createLink">
+            <form class="mt-4 grid gap-4 text-sm text-paper-oklch/80" @submit.prevent="createLink">
               <div class="grid gap-2">
+                <label class="text-xs text-paper-oklch/55">대상 선택</label>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="tap-area grow rounded-xl px-3 py-2 text-xs font-semibold ring-1 ring-surface"
+                    :class="formState.target === 'file' ? 'bg-white text-black' : 'bg-white/10 text-paper-oklch/70 hover:bg-white/15'"
+                    @click="formState.target = 'file'"
+                  >
+                    파일
+                  </button>
+                  <button
+                    type="button"
+                    class="tap-area grow rounded-xl px-3 py-2 text-xs font-semibold ring-1 ring-surface"
+                    :class="formState.target === 'folder' ? 'bg-white text-black' : 'bg-white/10 text-paper-oklch/70 hover:bg-white/15'"
+                    @click="formState.target = 'folder'"
+                  >
+                    폴더
+                  </button>
+                </div>
+              </div>
+              <div v-if="formState.target === 'file'" class="grid gap-2">
                 <label class="text-xs text-paper-oklch/55">파일 선택</label>
                 <div class="relative">
                   <select
@@ -64,6 +85,32 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
                   </svg>
                 </div>
+              </div>
+              <div v-else class="grid gap-2">
+                <label class="text-xs text-paper-oklch/55">폴더 선택</label>
+                <div class="relative">
+                  <select
+                    v-model="formState.folderId"
+                    class="w-full appearance-none rounded-xl border border-white/10 bg-black/30 px-4 py-2 pr-10 text-sm text-paper-oklch focus:border-white/40 focus:outline-none"
+                  >
+                    <option disabled value="">폴더를 선택하세요</option>
+                    <option value="root">루트 폴더</option>
+                    <option v-for="folder in folders" :key="folder.id" :value="folder.id">
+                      {{ folder.path }}
+                    </option>
+                  </select>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-paper-oklch/60"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
+                <p class="text-xs text-paper-oklch/55">선택한 폴더의 파일마다 개별 링크가 생성됩니다.</p>
               </div>
               <div class="grid gap-2">
                 <label class="text-xs text-paper-oklch/55">만료일 (일)</label>
@@ -235,7 +282,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import type { StoredFile } from '~/types/storage'
+import type { StoredFile, StoredFolder } from '~/types/storage'
 import type { ShareLink } from '~/types/share'
 import { getErrorMessage } from '~/utils/errorMessage'
 
@@ -243,6 +290,7 @@ import { getErrorMessage } from '~/utils/errorMessage'
 definePageMeta({ layout: 'app' })
 
 type FilesResponse = { data: StoredFile[] }
+type FoldersResponse = { data: StoredFolder[] }
 type ShareLinksResponse = { data: ShareLink[] }
 type FolderGroup = { folderId: string | null; folderName: string; folderPath: string; files: ShareLink[] }
 
@@ -252,15 +300,22 @@ const { data: filesData } = await useFetch<FilesResponse>('/api/files', {
   key: 'files-share'
 })
 
+const { data: foldersData } = await useFetch<FoldersResponse>('/api/folders', {
+  key: 'folders-share'
+})
+
 const { data: shareLinksData, refresh: refreshShareLinks } = await useFetch<ShareLinksResponse>('/api/share-links', {
   key: 'share-links'
 })
 
 const files = computed(() => filesData.value?.data ?? [])
+const folders = computed(() => foldersData.value?.data ?? [])
 const shareLinks = computed(() => shareLinksData.value?.data ?? [])
 
 const formState = reactive({
+  target: 'file' as 'file' | 'folder',
   fileId: '',
+  folderId: '',
   expiresInDays: 7,
   password: ''
 })
@@ -273,20 +328,38 @@ const origin = computed(() => (process.client ? window.location.origin : request
 const shareUrl = (id: string) => `${origin.value}/share/${id}`
 
 const createLink = async () => {
-  if (!formState.fileId) {
-    alert('공유할 파일을 선택하세요.')
-    return
+  if (formState.target === 'file') {
+    if (!formState.fileId) {
+      alert('공유할 파일을 선택하세요.')
+      return
+    }
+  } else {
+    if (!formState.folderId) {
+      alert('공유할 폴더를 선택하세요.')
+      return
+    }
   }
   creatingLink.value = true
   try {
-    await requestFetch('/api/share-links', {
-      method: 'POST',
-      body: {
-        fileId: formState.fileId,
-        expiresInDays: formState.expiresInDays,
-        password: formState.password || undefined
-      }
-    })
+    if (formState.target === 'file') {
+      await requestFetch('/api/share-links', {
+        method: 'POST',
+        body: {
+          fileId: formState.fileId,
+          expiresInDays: formState.expiresInDays,
+          password: formState.password || undefined
+        }
+      })
+    } else {
+      await requestFetch('/api/share-links/folder', {
+        method: 'POST',
+        body: {
+          folderId: formState.folderId,
+          expiresInDays: formState.expiresInDays,
+          password: formState.password || undefined
+        }
+      })
+    }
     formState.password = ''
     await refreshShareLinks()
   } catch (error) {
@@ -326,14 +399,18 @@ const closeDeleteDialog = () => {
 const confirmDeleteLink = async () => {
   if (!deleteDialog.linkId) return
   deleteDialog.submitting = true
+  let errorMessage: string | null = null
   try {
     await requestFetch(`/api/share-links/${deleteDialog.linkId}`, { method: 'DELETE' })
     await refreshShareLinks()
-    closeDeleteDialog()
   } catch (error) {
-    alert(getErrorMessage(error) || '공유 링크를 삭제할 수 없습니다.')
+    errorMessage = getErrorMessage(error) || '공유 링크를 삭제할 수 없습니다.'
   } finally {
     deleteDialog.submitting = false
+    closeDeleteDialog()
+    if (errorMessage) {
+      alert(errorMessage)
+    }
   }
 }
 

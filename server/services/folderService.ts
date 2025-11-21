@@ -37,6 +37,10 @@ const listFoldersByParentStmt = db.prepare(`
 `);
 
 const deleteFolderStmt = db.prepare('DELETE FROM folders WHERE id = ? AND userId = ?');
+const deleteFolderCascadeStmt = db.prepare(
+  `DELETE FROM folders WHERE userId = ? AND (id = ? OR path LIKE ? ESCAPE '\\')`
+);
+const deleteAllFoldersStmt = db.prepare('DELETE FROM folders WHERE userId = ?');
 const listDescendantIdsByPathStmt = db.prepare(`
   SELECT id
   FROM folders
@@ -115,9 +119,13 @@ export function deleteFolder(userId: string, folderId: string): boolean {
   const descendantIds = descendantRows.map((row) => row.id);
   const targetFolderIds = [folderId, ...descendantIds];
   deleteFilesInFolders(userId, targetFolderIds);
-
-  const res = deleteFolderStmt.run(folderId, userId);
+  const res = deleteFolderCascadeStmt.run(userId, folderId, descendantPattern);
   return res.changes > 0;
+}
+
+export function deleteAllFoldersForUser(userId: string): number {
+  const res = deleteAllFoldersStmt.run(userId);
+  return res.changes ?? 0;
 }
 
 function escapeLike(value: string) {
