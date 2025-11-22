@@ -68,6 +68,8 @@ See `.env.example` for full list. Key settings:
 -   `REGISTRATION_SEED` – shared secret that seeds the deterministic verification-code generator.
 -   `CLOUDFLARE_TUNNEL_TOKEN` – required when using the Cloudflare tunnel compose file.
 -   `KMS_CRYPTO_MAX_PLAINTEXT_BYTES` – (KMS repo) maximum plaintext payload the `/crypto/encrypt` endpoint accepts before returning `Plaintext too large`. Defaults to `10MB` and caps at `64MB`.
+-   `MAIL_FROM` – sender identity for password reset emails.
+-   `MAIL_GMAIL_USER` / `MAIL_GMAIL_APP_PASSWORD` – use Gmail (with an app password) for reset emails; when unset, reset links are logged to the server console.
 
 ### Verification Codes
 

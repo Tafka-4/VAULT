@@ -27,6 +27,12 @@ const selectByIdStmt = db.prepare(`
   SELECT id, email, passwordHash, createdAt FROM users WHERE id = ?
 `);
 
+const updateUserStmt = db.prepare(`
+  UPDATE users
+  SET email = COALESCE(@email, email), passwordHash = COALESCE(@passwordHash, passwordHash)
+  WHERE id = @id
+`);
+
 export function createUser(email: string, passwordHash: string): DbUser {
   const now = Date.now();
   const user: DbUser = { id: nanoid(21), email: email.toLowerCase(), passwordHash, createdAt: now };
@@ -40,6 +46,25 @@ export function getUserByEmail(email: string): DbUser | undefined {
 
 export function getUserById(id: string): DbUser | undefined {
   return selectByIdStmt.get(id);
+}
+
+export function updateUser(id: string, fields: Partial<Pick<DbUser, 'email' | 'passwordHash'>>): DbUser | undefined {
+  const current = getUserById(id);
+  if (!current) return undefined;
+
+  const updated: DbUser = {
+    ...current,
+    ...fields,
+    email: fields.email ? fields.email.toLowerCase() : current.email,
+  };
+
+  updateUserStmt.run({
+    id,
+    email: updated.email,
+    passwordHash: updated.passwordHash,
+  });
+
+  return updated;
 }
 
 export function toPublicUser(user: DbUser): PublicUser {

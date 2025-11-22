@@ -103,6 +103,17 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_share_links_user ON share_links(userId, createdAt DESC);
+
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    userId TEXT NOT NULL,
+    tokenHash TEXT NOT NULL UNIQUE,
+    expiresAt INTEGER NOT NULL,
+    createdAt INTEGER NOT NULL,
+    consumedAt INTEGER,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(userId, createdAt DESC);
 `);
 
 ensureColumn('files', 'folderId', `ALTER TABLE files ADD COLUMN folderId TEXT REFERENCES folders(id) ON DELETE SET NULL`);

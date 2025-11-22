@@ -12,6 +12,9 @@ export type AppConfig = {
 	kmsClientToken: string;
 	kmsRequestTimeoutMs: number;
 	registrationSeed: string;
+	mailFrom: string;
+	mailGmailUser: string;
+	mailGmailAppPassword: string;
 };
 
 const tokenAlphabet =
@@ -102,6 +105,9 @@ export function getAppConfig(): AppConfig {
 			? requestTimeoutEnv
 			: 10000;
 	const registrationSeed = process.env.REGISTRATION_SEED || "";
+	const mailFrom = process.env.MAIL_FROM || "no-reply@vault.local";
+	const mailGmailUser = process.env.MAIL_GMAIL_USER || "";
+	const mailGmailAppPassword = process.env.MAIL_GMAIL_APP_PASSWORD || "";
 
 	cached = {
 		dataDir,
@@ -112,6 +118,9 @@ export function getAppConfig(): AppConfig {
 		kmsClientToken: process.env.KMS_CLIENT_TOKEN || createToken(),
 		kmsRequestTimeoutMs,
 		registrationSeed,
+		mailFrom,
+		mailGmailUser,
+		mailGmailAppPassword,
 	};
 
 	return cached;

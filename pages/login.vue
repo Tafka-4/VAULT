@@ -43,7 +43,7 @@
       </form>
       <div class="space-y-2 text-xs text-paper-oklch/50">
         <NuxtLink to="/register" class="block hover:text-paper-oklch/80">계정이 없나요? 가입하기</NuxtLink>
-        <button type="button" class="block w-full text-paper-oklch/50 hover:text-paper-oklch/80">암호를 잊으셨나요?</button>
+        <NuxtLink to="/password-recovery" class="block hover:text-paper-oklch/80">암호를 잊으셨나요?</NuxtLink>
       </div>
     </div>
   </main>

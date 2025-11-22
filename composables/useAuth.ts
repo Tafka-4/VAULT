@@ -54,6 +54,35 @@ export function useAuth() {
     await refresh();
   };
 
+  const recoverPassword = async (payload: { email: string; password: string; verificationCode?: string; resetToken?: string }) => {
+    lastError.value = null;
+    await apiFetch<ApiResponse<AuthUser>>('/api/auth/recover', {
+      method: 'POST',
+      body: payload,
+      credentials: 'include',
+    });
+    await refresh();
+  };
+
+  const requestPasswordReset = async (payload: { email: string }) => {
+    lastError.value = null;
+    await apiFetch<ApiResponse<{ sent: boolean }>>('/api/auth/forgot', {
+      method: 'POST',
+      body: payload,
+      credentials: 'include',
+    });
+  };
+
+  const updateProfile = async (payload: { email?: string; password?: string; currentPassword: string }) => {
+    lastError.value = null;
+    await apiFetch<ApiResponse<AuthUser>>('/api/account/profile', {
+      method: 'PATCH',
+      body: payload,
+      credentials: 'include',
+    });
+    await refresh();
+  };
+
   const logout = async () => {
     await apiFetch('/api/auth/logout', {
       method: 'POST',
@@ -74,6 +103,9 @@ export function useAuth() {
     refresh,
     login,
     register,
+    recoverPassword,
+    requestPasswordReset,
+    updateProfile,
     logout,
   };
 }

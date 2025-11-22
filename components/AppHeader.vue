@@ -38,6 +38,13 @@
           </svg>
           새 업로드
         </NuxtLink>
+        <NuxtLink
+          v-if="isAuthenticated"
+          to="/app/account"
+          class="tap-area inline-flex rounded-xl px-3 py-2 text-sm text-paper-oklch/80 ring-1 ring-surface transition hover:bg-white/5 hover:text-paper-oklch"
+        >
+          내 정보
+        </NuxtLink>
         <div v-if="isAuthenticated" class="flex items-center gap-2">
           <div class="grid size-9 place-items-center rounded-full bg-white/10 text-sm font-semibold uppercase ring-1 ring-surface">
             {{ userInitial }}
