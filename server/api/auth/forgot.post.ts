@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     const { token, expiresAt } = createPasswordResetToken(user.id);
     const url = getRequestURL(event);
     const base = `${url.protocol}//${url.host}`;
-    const resetLink = `${base}/password-recovery?token=${token}`;
+    const resetLink = `${base}/password-reset?token=${encodeURIComponent(token)}`;
 
     try {
       await sendMail({

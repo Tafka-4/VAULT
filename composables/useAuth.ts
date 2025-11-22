@@ -83,6 +83,16 @@ export function useAuth() {
     await refresh();
   };
 
+  const loginWithResetToken = async (token: string) => {
+    lastError.value = null;
+    await apiFetch<ApiResponse<AuthUser>>('/api/auth/reset-session', {
+      method: 'POST',
+      body: { token },
+      credentials: 'include',
+    });
+    await refresh();
+  };
+
   const logout = async () => {
     await apiFetch('/api/auth/logout', {
       method: 'POST',
@@ -106,6 +116,7 @@ export function useAuth() {
     recoverPassword,
     requestPasswordReset,
     updateProfile,
+    loginWithResetToken,
     logout,
   };
 }
