@@ -68,7 +68,11 @@
           </p>
         </div>
         <div class="rounded-[1.75rem] bg-white/5 p-3 ring-1 ring-surface">
-          <div class="rounded-[1.25rem] bg-black/30 p-2">
+            <div
+              class="rounded-[1.25rem] bg-black/30 p-2"
+              @dragover.prevent
+              @drop.prevent="handleDropOnRoot"
+            >
             <FileRow
               v-if="recentFiles.length"
               v-for="file in recentFiles"
@@ -192,6 +196,11 @@
                 :name="folder.name"
                 :detail="folder.path"
                 actionable
+                draggable
+                @dragstart="handleFolderDragStart(folder.id)"
+                @dragend="handleFolderDragEnd"
+                @dragover.prevent
+                @drop.prevent="handleDropOnFolder(folder.id)"
                 :active="folderScope === folder.id"
                 show-delete
                 :deleting="Boolean(deleteFolderState[folder.id])"
@@ -536,6 +545,7 @@ const confirmMessage = computed(() => {
       : '저장된 모든 파일과 폴더를 삭제하시겠습니까? 즐겨찾기도 함께 지워집니다.'
 })
 const draggingFileId = ref<string | null>(null)
+const draggingFolderId = ref<string | null>(null)
 const clearingAll = ref(false)
 
 const setDeleteState = (id: string, value: boolean) => {
@@ -601,6 +611,65 @@ const handleFileDrop = async (folderId: string | null) => {
   if (!draggingFileId.value) return
   await moveFile(draggingFileId.value, folderId)
   draggingFileId.value = null
+}
+
+const handleFolderDragStart = (folderId: string) => {
+  draggingFolderId.value = folderId
+}
+
+const handleFolderDragEnd = () => {
+  draggingFolderId.value = null
+}
+
+const canDropFolder = (targetFolderId: string | null) => {
+  if (!draggingFolderId.value) return false
+  if (draggingFolderId.value === targetFolderId) return false
+  const source = folders.value.find(folder => folder.id === draggingFolderId.value)
+  if (!source) return false
+  if (!targetFolderId) return true
+  const target = folders.value.find(folder => folder.id === targetFolderId)
+  if (!target) return false
+  if (target.path.startsWith(source.path)) return false
+  return true
+}
+
+const moveFolderTo = async (targetFolderId: string | null) => {
+  if (!draggingFolderId.value) return
+  if (!canDropFolder(targetFolderId)) return
+  const movingId = draggingFolderId.value
+  draggingFolderId.value = null
+  try {
+    await requestFetch(`/api/folders/${movingId}/move`, {
+      method: 'POST',
+      body: { parentId: targetFolderId }
+    })
+    await Promise.all([refreshFolders(), refresh()])
+    if (folderScope.value === movingId) {
+      folderScope.value = targetFolderId ?? 'root'
+    }
+  } catch (error) {
+    alert(getErrorMessage(error) || '폴더를 이동할 수 없습니다.')
+  }
+}
+
+const handleDropOnFolder = async (folderId: string) => {
+  if (draggingFileId.value) {
+    await handleFileDrop(folderId)
+    return
+  }
+  if (draggingFolderId.value) {
+    await moveFolderTo(folderId)
+  }
+}
+
+const handleDropOnRoot = async () => {
+  if (draggingFileId.value) {
+    await handleFileDrop(null)
+    return
+  }
+  if (draggingFolderId.value) {
+    await moveFolderTo(null)
+  }
 }
 
 const requestDeleteFile = (file: StoredFile) => {

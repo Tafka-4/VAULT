@@ -46,6 +46,19 @@ const listDescendantIdsByPathStmt = db.prepare(`
   FROM folders
   WHERE userId = ? AND path LIKE ? ESCAPE '\\'
 `);
+const selectDescendantsStmt = db.prepare(`
+  SELECT id, path
+  FROM folders
+  WHERE userId = ? AND path LIKE ? ESCAPE '\\'
+`);
+const updateFolderMetaStmt = db.prepare(`
+  UPDATE folders
+  SET parentId = @parentId, path = @path
+  WHERE id = @id AND userId = @userId
+`);
+const findPathConflictStmt = db.prepare(`
+  SELECT id FROM folders WHERE userId = ? AND path = ? AND id != ? LIMIT 1
+`);
 
 export function createFolder(userId: string, name: string, parentId: string | null = null): FolderRecord {
   const trimmed = name.trim();
@@ -126,6 +139,64 @@ export function deleteFolder(userId: string, folderId: string): boolean {
 export function deleteAllFoldersForUser(userId: string): number {
   const res = deleteAllFoldersStmt.run(userId);
   return res.changes ?? 0;
+}
+
+export function moveFolder(userId: string, folderId: string, targetParentId: string | null): FolderRecord {
+  const folder = assertFolderOwnership(userId, folderId);
+  if (targetParentId === folderId) {
+    throw new Error('폴더를 자기 자신 안으로 이동할 수 없습니다.');
+  }
+
+  let parentPath = '';
+  if (targetParentId) {
+    const parent = assertFolderOwnership(userId, targetParentId);
+    if (parent.path.startsWith(folder.path)) {
+      throw new Error('하위 폴더로 이동할 수 없습니다.');
+    }
+    parentPath = parent.path;
+  }
+
+  const normalizedParent = parentPath && parentPath !== '/' ? parentPath : '';
+  const newPath = `${normalizedParent}/${folder.name}`.replace(/\/{2,}/g, '/');
+  if (newPath === folder.path) {
+    return folder;
+  }
+
+  const conflict = findPathConflictStmt.get(userId, newPath, folderId) as { id: string } | undefined;
+  if (conflict) {
+    throw new Error('같은 경로에 동일한 폴더가 이미 있습니다.');
+  }
+
+  const descendantPattern = `${escapeLike(folder.path)}/%`;
+  const descendants = selectDescendantsStmt.all(userId, descendantPattern) as Array<{ id: string; path: string }>;
+  const subtreeIds = new Set([folderId, ...descendants.map(d => d.id)]);
+
+  const updates = [{ id: folderId, path: newPath, parentId: targetParentId ?? null }];
+  descendants.forEach(desc => {
+    updates.push({
+      id: desc.id,
+      path: desc.path.replace(folder.path, newPath),
+      parentId: undefined
+    } as any);
+  });
+
+  const tx = db.transaction(() => {
+    for (const update of updates) {
+      updateFolderMetaStmt.run({
+        id: update.id,
+        userId,
+        path: update.path,
+        parentId: update.parentId ?? selectFolderByIdStmt.get(update.id)?.parentId ?? null
+      });
+    }
+  });
+  tx();
+
+  const updated = getFolderById(folderId);
+  if (!updated) {
+    throw new Error('폴더를 이동한 후 찾을 수 없습니다.');
+  }
+  return updated;
 }
 
 function escapeLike(value: string) {
