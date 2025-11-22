@@ -36,7 +36,7 @@
       </form>
 
       <div class="space-y-2 text-xs text-paper-oklch/50">
-        <NuxtLink to="/password-reset" class="block hover:text-paper-oklch/80">토큰이나 초대 코드가 있나요? 암호 재설정</NuxtLink>
+        <NuxtLink to="/password-reset?type=code" class="block hover:text-paper-oklch/80">초대 코드가 있나요? 암호 재설정</NuxtLink>
         <NuxtLink to="/login" class="block hover:text-paper-oklch/80">로그인으로 돌아가기</NuxtLink>
       </div>
     </div>
