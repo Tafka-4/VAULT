@@ -1,46 +1,40 @@
 <template>
   <main class="relative flex min-h-dvh flex-col items-center justify-center px-4">
     <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(58%_48%_at_50%_-10%,_rgba(214,211,209,0.16),_transparent_65%)]"></div>
-    <div class="w-full max-w-4xl space-y-10 text-center">
+    <div class="w-full max-w-xl space-y-8 text-center">
       <NuxtLink to="/" class="inline-flex flex-col items-center gap-2">
         <span class="text-[3.25rem] font-extrabold uppercase tracking-[0.6em] text-paper-oklch/80 sm:text-[4rem]">VAULT</span>
         <span class="text-xs uppercase tracking-[0.4em] text-paper-oklch/40">암호 재설정</span>
       </NuxtLink>
 
-      <div class="flex flex-wrap items-center justify-center gap-3">
-        <button
-          class="tap-area rounded-full px-5 py-2 text-sm font-semibold"
+      <div class="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.28em] text-paper-oklch/60">
+        <NuxtLink
+          :to="switchTarget('email')"
+          class="rounded-full px-4 py-2 text-sm font-semibold"
           :class="mode === 'email' ? 'bg-white text-black' : 'bg-white/10 text-paper-oklch/80 ring-1 ring-surface'"
-          @click="switchMode('email')"
         >
-          이메일 링크로 재설정
-        </button>
-        <button
-          class="tap-area rounded-full px-5 py-2 text-sm font-semibold"
+          이메일 링크
+        </NuxtLink>
+        <NuxtLink
+          :to="switchTarget('code')"
+          class="rounded-full px-4 py-2 text-sm font-semibold"
           :class="mode === 'code' ? 'bg-white text-black' : 'bg-white/10 text-paper-oklch/80 ring-1 ring-surface'"
-          @click="switchMode('code')"
         >
-          초대 코드로 재설정
-        </button>
+          초대 코드
+        </NuxtLink>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-2">
-        <div
-          class="rounded-[1.75rem] bg-white/5 p-6 text-left ring-1 ring-surface"
-          :class="mode === 'email' ? 'ring-white/60' : 'opacity-70'
-          "
-        >
-          <div class="flex flex-col gap-2">
+      <div class="rounded-[1.75rem] bg-white/5 p-6 text-left ring-1 ring-surface">
+        <template v-if="mode === 'email'">
+          <div class="space-y-2">
             <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">이메일 링크</p>
             <h2 class="text-xl font-bold">링크로 인증 후 변경</h2>
-            <p class="text-sm text-paper-oklch/60">
-              메일로 받은 링크를 열면 자동으로 인증됩니다. 인증된 상태에서 새 암호만 입력하세요.
-            </p>
+            <p class="text-sm text-paper-oklch/60">메일로 받은 링크를 열면 자동으로 인증됩니다. 인증된 상태에서 새 암호를 입력하세요.</p>
             <p v-if="tokenStatus" class="text-xs text-emerald-200/80">{{ tokenStatus }}</p>
             <p v-if="tokenError" class="text-xs text-red-200/80">{{ tokenError }}</p>
           </div>
 
-          <form class="mt-4 space-y-4" @submit.prevent="handleRecover('email')">
+          <form class="mt-5 space-y-4" @submit.prevent="handleRecover('email')">
             <div class="space-y-1 rounded-xl bg-black/25 p-3 text-sm">
               <p class="text-paper-oklch/60">인증 이메일</p>
               <p class="font-semibold" v-if="resolvedEmail">{{ resolvedEmail }}</p>
@@ -56,9 +50,8 @@
                   placeholder="최소 8자"
                   minlength="8"
                   v-model="password"
-                  :disabled="mode !== 'email'"
                   required
-                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
               <div class="space-y-2">
@@ -68,10 +61,9 @@
                   type="password"
                   minlength="8"
                   v-model="confirm"
-                  :disabled="mode !== 'email'"
                   placeholder="다시 입력"
                   required
-                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
             </div>
@@ -81,25 +73,22 @@
 
             <button
               type="submit"
-              :disabled="pending || mode !== 'email'"
+              :disabled="pending"
               class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
             >
-              {{ pending && mode === 'email' ? '저장 중...' : '암호 재설정' }}
+              {{ pending ? '저장 중...' : '암호 재설정' }}
             </button>
           </form>
-        </div>
+        </template>
 
-        <div
-          class="rounded-[1.75rem] bg-white/5 p-6 text-left ring-1 ring-surface"
-          :class="mode === 'code' ? 'ring-white/60' : 'opacity-70'"
-        >
-          <div class="flex flex-col gap-2">
+        <template v-else>
+          <div class="space-y-2">
             <p class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">초대 코드</p>
             <h2 class="text-xl font-bold">초대 코드로 재설정</h2>
             <p class="text-sm text-paper-oklch/60">초대 코드와 계정 이메일을 입력해 새 암호를 설정하세요.</p>
           </div>
 
-          <form class="mt-4 space-y-4" @submit.prevent="handleRecover('code')">
+          <form class="mt-5 space-y-4" @submit.prevent="handleRecover('code')">
             <div class="space-y-2">
               <label for="code-email" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">이메일</label>
               <input
@@ -107,8 +96,7 @@
                 type="email"
                 placeholder="you@vault.app"
                 v-model="codeEmail"
-                :disabled="mode !== 'code'"
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
 
@@ -119,8 +107,7 @@
                 type="text"
                 placeholder="Vault{...} 형식의 코드"
                 v-model="verificationCode"
-                :disabled="mode !== 'code'"
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
 
@@ -133,9 +120,8 @@
                   placeholder="최소 8자"
                   minlength="8"
                   v-model="password"
-                  :disabled="mode !== 'code'"
                   required
-                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
               <div class="space-y-2">
@@ -145,10 +131,9 @@
                   type="password"
                   minlength="8"
                   v-model="confirm"
-                  :disabled="mode !== 'code'"
                   placeholder="다시 입력"
                   required
-                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-70"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
             </div>
@@ -158,13 +143,13 @@
 
             <button
               type="submit"
-              :disabled="pending || mode !== 'code'"
+              :disabled="pending"
               class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
             >
-              {{ pending && mode === 'code' ? '저장 중...' : '암호 재설정' }}
+              {{ pending ? '저장 중...' : '암호 재설정' }}
             </button>
           </form>
-        </div>
+        </template>
       </div>
 
       <div class="space-y-2 text-xs text-paper-oklch/50">
@@ -192,23 +177,24 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const tokenStatus = ref('')
 const tokenError = ref('')
-const mode = ref<'email' | 'code'>(route.query.type === 'code' ? 'code' : 'email')
+const mode = computed<'email' | 'code'>(() => (route.query.type === 'code' ? 'code' : 'email'))
 
 const resolvedEmail = computed(() => auth.user.value?.email || (route.query.email as string | undefined) || '')
 
-const switchMode = (next: 'email' | 'code') => {
-  mode.value = next
-  errorMessage.value = ''
-  successMessage.value = ''
-  navigateTo({ path: '/password-reset', query: { ...(autoToken.value ? { token: autoToken.value } : {}), type: next } }, { replace: true })
-}
+const switchTarget = (next: 'email' | 'code') => ({
+  path: '/password-reset',
+  query: {
+    ...(autoToken.value ? { token: autoToken.value } : {}),
+    ...(resolvedEmail.value ? { email: resolvedEmail.value } : {}),
+    type: next,
+  },
+})
 
 onMounted(async () => {
   const tokenFromQuery = typeof route.query.token === 'string' ? route.query.token : ''
   if (tokenFromQuery) {
     autoToken.value = tokenFromQuery
     await attemptTokenLogin(tokenFromQuery)
-    mode.value = 'email'
   }
 
   if (!codeEmail.value && auth.user.value?.email) {
