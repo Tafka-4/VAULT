@@ -35,12 +35,21 @@
               v-model="verificationCode"
               class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
             />
-            <p v-if="verificationCode && !isCodeValid" class="text-xs text-red-200/80">코드 형식이 올바르지 않습니다. 메일에 표시된 값을 그대로 붙여넣기 해주세요.</p>
+            <p v-if="codeVerificationStatus === 'checking'" class="text-xs text-paper-oklch/70">초대 코드를 확인 중입니다...</p>
+            <p
+              v-else-if="verificationCode && codeVerificationStatus === 'invalid'"
+              class="text-xs text-red-200/80"
+            >
+              {{ codeVerificationMessage || '코드 형식이 올바르지 않습니다. 메일에 표시된 값을 그대로 붙여넣기 해주세요.' }}
+            </p>
+            <p v-else-if="codeVerificationStatus === 'valid'" class="text-xs text-emerald-200/80">
+              {{ codeVerificationMessage }}
+            </p>
           </div>
 
           <div class="space-y-3 rounded-xl bg-black/20 p-4 ring-1 ring-white/5">
             <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/55">새 암호</p>
-            <p v-if="!canEditPassword" class="text-xs text-red-200/80">이메일과 초대 코드를 먼저 입력하세요.</p>
+            <p v-if="!canEditPassword" class="text-xs text-red-200/80">이메일과 인증된 초대 코드를 먼저 입력하세요.</p>
             <div v-if="canEditPassword" class="grid gap-4 sm:grid-cols-2">
               <div class="space-y-2">
                 <label for="code-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
@@ -72,7 +81,7 @@
 
           <button
             type="submit"
-            :disabled="pending || !canEditPassword"
+            :disabled="pending || verifyingCode || !canEditPassword"
             class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
           >
             {{ pending ? '저장 중...' : '암호 재설정' }}
@@ -89,20 +98,80 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getErrorMessage } from '~/utils/errorMessage'
 
 const auth = useAuth()
+const requestFetch = useRequestFetch()
 
 const email = ref('')
 const verificationCode = ref('')
 const password = ref('')
 const confirm = ref('')
 const pending = ref(false)
+const verifyingCode = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const isCodeValid = computed(() => /^Vault\{[A-Za-z0-9+\/=_-]{8,}\}$/.test(verificationCode.value.trim()))
-const canEditPassword = computed(() => Boolean(email.value && isCodeValid.value))
+const codeVerificationMessage = ref('')
+const codeVerificationStatus = ref<'idle' | 'checking' | 'valid' | 'invalid'>('idle')
+const isCodeFormatValid = computed(() => /^Vault\{[A-Za-z0-9+\/=_-]{8,}\}$/.test(verificationCode.value.trim()))
+const isCodeVerified = computed(() => codeVerificationStatus.value === 'valid')
+const canEditPassword = computed(() => Boolean(email.value && isCodeVerified.value))
+let verificationTimer: ReturnType<typeof setTimeout> | null = null
+let latestVerificationRequest = 0
+
+const verifyCode = async (code: string) => {
+  const requestId = ++latestVerificationRequest
+  verifyingCode.value = true
+  try {
+    const response = await requestFetch<{ data: { valid: boolean; message?: string | null } }>('/api/auth/verify-code', {
+      method: 'POST',
+      body: { verificationCode: code }
+    })
+
+    if (requestId !== latestVerificationRequest) return
+
+    const valid = response?.data?.valid
+    codeVerificationStatus.value = valid ? 'valid' : 'invalid'
+    codeVerificationMessage.value = valid
+      ? '초대 코드가 확인되었어요.'
+      : response?.data?.message || '초대 코드가 올바르지 않습니다.'
+  } catch (error) {
+    if (requestId !== latestVerificationRequest) return
+    codeVerificationStatus.value = 'invalid'
+    codeVerificationMessage.value = getErrorMessage(error) || '코드를 검증할 수 없습니다.'
+  } finally {
+    if (requestId === latestVerificationRequest) {
+      verifyingCode.value = false
+    }
+  }
+}
+
+watch(
+  () => verificationCode.value,
+  (code) => {
+    codeVerificationMessage.value = ''
+    codeVerificationStatus.value = 'idle'
+
+    if (verificationTimer) {
+      clearTimeout(verificationTimer)
+      verificationTimer = null
+    }
+
+    if (!code) {
+      return
+    }
+
+    if (!isCodeFormatValid.value) {
+      codeVerificationStatus.value = 'invalid'
+      codeVerificationMessage.value = '코드 형식이 올바르지 않습니다. 메일에 표시된 값을 그대로 붙여넣기 해주세요.'
+      return
+    }
+
+    codeVerificationStatus.value = 'checking'
+    verificationTimer = setTimeout(() => verifyCode(code.trim()), 300)
+  }
+)
 
 const handleRecover = async () => {
   errorMessage.value = ''
@@ -118,7 +187,12 @@ const handleRecover = async () => {
     return
   }
 
-  if (!isCodeValid.value) {
+  if (!isCodeVerified.value) {
+    errorMessage.value = '초대 코드 인증을 먼저 완료하세요.'
+    return
+  }
+
+  if (!isCodeFormatValid.value) {
     errorMessage.value = '초대 코드 형식이 올바르지 않습니다.'
     return
   }
