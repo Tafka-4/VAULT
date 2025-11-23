@@ -23,7 +23,7 @@
             <p v-else class="text-xs text-red-200/80">인증된 이메일을 불러오지 못했어요. 링크를 다시 열어주세요.</p>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-4 sm:grid-cols-1">
             <div class="space-y-2">
               <label for="email-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
               <input
@@ -65,7 +65,6 @@
 
       <div class="space-y-2 text-xs text-paper-oklch/50">
         <NuxtLink to="/password-recovery" class="block hover:text-paper-oklch/80">이메일을 다시 보내기</NuxtLink>
-        <NuxtLink to="/password-reset-code" class="block hover:text-paper-oklch/80">초대 코드로 재설정</NuxtLink>
         <NuxtLink to="/login" class="block hover:text-paper-oklch/80">로그인으로 돌아가기</NuxtLink>
       </div>
     </div>

@@ -79,7 +79,6 @@
 
       <div class="space-y-2 text-xs text-paper-oklch/50">
         <NuxtLink to="/password-recovery" class="block hover:text-paper-oklch/80">이메일로 링크 받기</NuxtLink>
-        <NuxtLink to="/password-reset-email" class="block hover:text-paper-oklch/80">이메일 링크로 재설정</NuxtLink>
         <NuxtLink to="/login" class="block hover:text-paper-oklch/80">로그인으로 돌아가기</NuxtLink>
       </div>
     </div>
