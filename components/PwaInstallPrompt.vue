@@ -14,8 +14,8 @@
           </svg>
         </div>
         <div class="flex-1 text-left">
-          <p class="text-sm font-semibold text-white">웹앱으로 설치할까요?</p>
-          <p class="text-xs text-paper-oklch/70">홈 화면에 추가하면 더 빠르게 열리고, 로그인 상태도 유지돼요.</p>
+          <p class="text-sm font-semibold text-white">웹앱 설치</p>
+          <p class="text-xs text-paper-oklch/70">홈 화면에 추가하면 더 빠르게 접근할 수 있어요.</p>
         </div>
         <div class="flex flex-shrink-0 items-center gap-2">
           <button type="button" class="tap-area rounded-xl px-3 py-2 text-xs text-paper-oklch/70 hover:bg-white/5" @click="dismiss">
