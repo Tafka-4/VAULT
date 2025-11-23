@@ -35,6 +35,7 @@
               v-model="verificationCode"
               class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
             />
+            <p v-if="verificationCode && !isCodeValid" class="text-xs text-red-200/80">코드 형식이 올바르지 않습니다. 메일에 표시된 값을 그대로 붙여넣기 해주세요.</p>
           </div>
 
           <div class="space-y-3 rounded-xl bg-black/20 p-4 ring-1 ring-white/5">
@@ -100,7 +101,8 @@ const confirm = ref('')
 const pending = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const canEditPassword = computed(() => Boolean(email.value && verificationCode.value))
+const isCodeValid = computed(() => /^Vault\{[A-Za-z0-9+\/=_-]{8,}\}$/.test(verificationCode.value.trim()))
+const canEditPassword = computed(() => Boolean(email.value && isCodeValid.value))
 
 const handleRecover = async () => {
   errorMessage.value = ''
@@ -113,6 +115,11 @@ const handleRecover = async () => {
 
   if (!email.value || !verificationCode.value) {
     errorMessage.value = '이메일과 초대 코드를 입력하세요.'
+    return
+  }
+
+  if (!isCodeValid.value) {
+    errorMessage.value = '초대 코드 형식이 올바르지 않습니다.'
     return
   }
 
