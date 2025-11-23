@@ -23,30 +23,33 @@
             <p v-else class="text-xs text-red-200/80">인증된 이메일을 불러오지 못했어요. 링크를 다시 열어주세요.</p>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-1">
-            <div class="space-y-2">
-              <label for="email-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
-              <input
-                id="email-password"
-                type="password"
-                placeholder="최소 8자"
-                minlength="8"
-                v-model="password"
-                required
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-              />
-            </div>
-            <div class="space-y-2">
-              <label for="email-confirm" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호 확인</label>
-              <input
-                id="email-confirm"
-                type="password"
-                minlength="8"
-                v-model="confirm"
-                placeholder="다시 입력"
-                required
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-              />
+          <div v-if="resolvedEmail" class="space-y-3 rounded-xl bg-black/20 p-4 ring-1 ring-white/5">
+            <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/55">새 암호</p>
+            <div class="space-y-3">
+              <div class="space-y-2">
+                <label for="email-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
+                <input
+                  id="email-password"
+                  type="password"
+                  placeholder="최소 8자"
+                  minlength="8"
+                  v-model="password"
+                  required
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="email-confirm" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호 확인</label>
+                <input
+                  id="email-confirm"
+                  type="password"
+                  minlength="8"
+                  v-model="confirm"
+                  placeholder="다시 입력"
+                  required
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
             </div>
           </div>
 
@@ -54,6 +57,7 @@
           <p v-else-if="successMessage" class="text-xs text-emerald-200/80">{{ successMessage }}</p>
 
           <button
+            v-if="resolvedEmail"
             type="submit"
             :disabled="pending"
             class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
