@@ -92,7 +92,7 @@
                   >
                     <div class="flex items-center justify-between gap-4">
                       <div class="min-w-0">
-                        <p class="truncate font-semibold" :title="group.name">{{ formatDisplayName(group.name) }}</p>
+                        <p class="truncate font-semibold max-w-[65vw] sm:max-w-none" :title="group.name">{{ formatDisplayName(group.name) }}</p>
                         <p class="text-xs text-paper-oklch/55">{{ group.count }}개 파일 · {{ formatBytes(group.totalSize) }}</p>
                       </div>
                       <span
@@ -121,9 +121,9 @@
                     class="space-y-2 rounded-2xl bg-black/35 px-4 py-3 text-sm ring-1 ring-surface"
                   >
                     <div class="flex items-center justify-between gap-4">
-                      <div class="min-w-0">
-                        <p class="truncate font-medium" :title="item.name">{{ formatDisplayName(item.name) }}</p>
-                        <p class="text-xs text-paper-oklch/55">{{ formatBytes(item.size) }}</p>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate font-medium max-w-[65vw] sm:max-w-none" :title="item.name">{{ formatDisplayName(item.name) }}</p>
+                        <p class="truncate text-xs text-paper-oklch/55">{{ formatBytes(item.size) }}</p>
                       </div>
                       <span
                         class="text-xs font-semibold"
@@ -185,10 +185,10 @@
                 class="flex items-center justify-between rounded-xl bg-black/30 px-3 py-3 ring-1 ring-surface"
               >
                 <div class="min-w-0">
-                  <p class="truncate font-medium" :title="item.name">{{ item.name }}</p>
-                  <p class="truncate text-xs text-paper-oklch/55" :title="new Date(item.updatedAt).toLocaleString('ko-KR')">
-                    {{ formatBytes(item.size) }} · {{ new Date(item.updatedAt).toLocaleString('ko-KR') }}
-                  </p>
+                <p class="truncate font-medium max-w-[65vw] sm:max-w-none" :title="item.name">{{ formatDisplayName(item.name) }}</p>
+                <p class="truncate text-xs text-paper-oklch/55" :title="new Date(item.updatedAt).toLocaleString('ko-KR')">
+                  {{ formatBytes(item.size) }} · {{ new Date(item.updatedAt).toLocaleString('ko-KR') }}
+                </p>
                 </div>
                 <NuxtLink :to="`/app/file-preview/${item.id}`" class="whitespace-nowrap text-xs text-paper-oklch/60 hover:text-paper-oklch/80">보기</NuxtLink>
               </div>
@@ -986,7 +986,7 @@ const extractStringField = (source: Record<string, unknown>, keys: string[]) => 
   return null
 }
 
-const formatDisplayName = (value: string, max = 40) => {
+const formatDisplayName = (value: string, max = 28) => {
   if (!value) return ''
   return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }
