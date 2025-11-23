@@ -31,25 +31,37 @@
         <div v-if="isAuthenticated" class="relative" ref="profileMenuRef">
           <button
             type="button"
-            class="tap-area inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold uppercase ring-1 ring-surface transition hover:bg-white/15"
+            class="tap-area inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-paper-oklch/90 shadow-sm shadow-black/30 transition hover:border-white/20 hover:bg-white/10"
             @click.stop="toggleMenu"
+            :aria-expanded="isMenuOpen"
+            aria-haspopup="menu"
+            aria-label="프로필 메뉴 열기"
           >
-            <span class="grid size-8 place-items-center rounded-full bg-white/10 text-xs ring-1 ring-surface">
+            <span class="grid size-8 place-items-center rounded-full bg-gradient-to-br from-white/30 to-white/10 text-xs font-semibold text-white ring-1 ring-white/20 shadow-inner shadow-black/30">
               {{ userInitial }}
             </span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-paper-oklch/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="size-4 text-paper-oklch/70 transition-transform"
+              :class="isMenuOpen ? 'rotate-180' : ''"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
             </svg>
           </button>
           <transition name="fade">
             <div
               v-show="isMenuOpen"
-              class="absolute right-0 z-50 mt-2 w-44 overflow-hidden rounded-xl bg-black/80 backdrop-blur ring-1 ring-surface"
+              class="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-white/10 bg-black/80 backdrop-blur shadow-xl shadow-black/40 ring-1 ring-surface"
+              role="menu"
             >
               <NuxtLink
                 to="/app/upload"
                 class="flex items-center gap-2 px-4 py-3 text-sm text-paper-oklch/90 hover:bg-white/10"
                 @click="closeMenu"
+                role="menuitem"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
@@ -60,6 +72,7 @@
                 to="/app/account"
                 class="flex items-center gap-2 px-4 py-3 text-sm text-paper-oklch/90 hover:bg-white/10"
                 @click="closeMenu"
+                role="menuitem"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -69,8 +82,9 @@
               </NuxtLink>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-paper-oklch/90 hover:bg-white/10"
+                class="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-red-200/90 hover:bg-white/10"
                 @click="handleLogout"
+                role="menuitem"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
