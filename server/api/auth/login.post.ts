@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { createError, defineEventHandler, readBody } from 'h3';
 import { getUserByEmail, toPublicUser } from '~/server/services/userService';
+import { enforceRateLimit } from '~/server/utils/rateLimit';
 import { establishSession } from '~/server/utils/auth';
 
 const loginSchema = z.object({
@@ -10,6 +11,8 @@ const loginSchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
+  enforceRateLimit(event, 'auth:login', 10, 5 * 60 * 1000);
+
   const body = await readBody(event);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {

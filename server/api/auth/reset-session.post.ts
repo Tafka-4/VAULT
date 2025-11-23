@@ -3,10 +3,13 @@ import { createError, defineEventHandler, readBody } from 'h3';
 import { establishSession } from '~/server/utils/auth';
 import { findValidResetToken } from '~/server/services/passwordResetService';
 import { getUserById, toPublicUser } from '~/server/services/userService';
+import { enforceRateLimit } from '~/server/utils/rateLimit';
 
 const schema = z.object({ token: z.string().min(10, '토큰이 필요합니다.') });
 
 export default defineEventHandler(async (event) => {
+  enforceRateLimit(event, 'auth:reset-session', 8, 5 * 60 * 1000);
+
   const body = await readBody(event);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
