@@ -1,4 +1,4 @@
-const guestOnlyPaths = new Set(['/login', '/register', '/password-recovery', '/password-reset']);
+const guestOnlyPaths = new Set(['/login', '/register', '/password-recovery', '/password-reset', '/password-reset-email', '/password-reset-code']);
 
 export default defineNuxtRouteMiddleware(async (to) => {
   const normalizedPath = to.path.endsWith('/') && to.path.length > 1 ? to.path.slice(0, -1) : to.path;
