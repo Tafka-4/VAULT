@@ -28,34 +28,58 @@
         >
           로그인
         </NuxtLink>
-        <NuxtLink
-          v-if="isAuthenticated"
-          to="/app/upload"
-          class="tap-area inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-sm font-semibold text-black hover:bg-white"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
-          </svg>
-          새 업로드
-        </NuxtLink>
-        <NuxtLink
-          v-if="isAuthenticated"
-          to="/app/account"
-          class="tap-area inline-flex rounded-xl px-3 py-2 text-sm text-paper-oklch/80 ring-1 ring-surface transition hover:bg-white/5 hover:text-paper-oklch"
-        >
-          내 정보
-        </NuxtLink>
-        <div v-if="isAuthenticated" class="flex items-center gap-2">
-          <div class="grid size-9 place-items-center rounded-full bg-white/10 text-sm font-semibold uppercase ring-1 ring-surface">
-            {{ userInitial }}
-          </div>
+        <div v-if="isAuthenticated" class="relative" ref="profileMenuRef">
           <button
             type="button"
-            class="tap-area rounded-xl px-3 py-2 text-sm text-paper-oklch/80 ring-1 ring-surface hover:bg-white/5 hover:text-paper-oklch"
-            @click="handleLogout"
+            class="tap-area inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold uppercase ring-1 ring-surface transition hover:bg-white/15"
+            @click.stop="toggleMenu"
           >
-            로그아웃
+            <span class="grid size-8 place-items-center rounded-full bg-white/10 text-xs ring-1 ring-surface">
+              {{ userInitial }}
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-paper-oklch/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6" />
+            </svg>
           </button>
+          <transition name="fade">
+            <div
+              v-show="isMenuOpen"
+              class="absolute right-0 z-50 mt-2 w-44 overflow-hidden rounded-xl bg-black/80 backdrop-blur ring-1 ring-surface"
+            >
+              <NuxtLink
+                to="/app/upload"
+                class="flex items-center gap-2 px-4 py-3 text-sm text-paper-oklch/90 hover:bg-white/10"
+                @click="closeMenu"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
+                </svg>
+                새 업로드
+              </NuxtLink>
+              <NuxtLink
+                to="/app/account"
+                class="flex items-center gap-2 px-4 py-3 text-sm text-paper-oklch/90 hover:bg-white/10"
+                @click="closeMenu"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 20a8 8 0 1116 0H4z" />
+                </svg>
+                내 정보
+              </NuxtLink>
+              <button
+                type="button"
+                class="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-paper-oklch/90 hover:bg-white/10"
+                @click="handleLogout"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 12H9m0 0l3-3m-3 3l3 3" />
+                </svg>
+                로그아웃
+              </button>
+            </div>
+          </transition>
         </div>
       </div>
     </div>
@@ -63,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const auth = useAuth()
 const route = useRoute()
@@ -71,11 +95,46 @@ const route = useRoute()
 const isAuthenticated = computed(() => Boolean(auth.user.value))
 const showLoginLink = computed(() => !isAuthenticated.value && route.path !== '/login')
 const userInitial = computed(() => auth.user.value?.email?.[0]?.toUpperCase() ?? 'U')
+const isMenuOpen = ref(false)
+const profileMenuRef = ref<HTMLElement | null>(null)
 
 const handleLogout = async () => {
+  isMenuOpen.value = false
   await auth.logout()
   if (route.path.startsWith('/app')) {
     await navigateTo('/login')
   }
 }
+
+const closeMenu = () => {
+  isMenuOpen.value = false
+}
+
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value
+}
+
+const handleClickOutside = (event: MouseEvent) => {
+  if (!isMenuOpen.value) return
+  const target = event.target as Node | null
+  if (profileMenuRef.value && target && !profileMenuRef.value.contains(target)) {
+    closeMenu()
+  }
+}
+
+const handleEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeMenu()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleEscape)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleEscape)
+})
 </script>

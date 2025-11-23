@@ -2,10 +2,10 @@
   <main class="relative flex min-h-dvh flex-col items-center justify-center gap-10 px-4 text-center">
     <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,_rgba(214,211,209,0.12),_transparent_60%)]"></div>
     <div class="flex flex-col items-center gap-6">
-      <span class="text-[3.5rem] font-extrabold uppercase tracking-[0.6em] text-paper-oklch/80 sm:text-[4.5rem] center">
+      <span class="text-[2.8rem] font-extrabold uppercase tracking-[0.32em] text-paper-oklch/80 sm:text-[4.5rem] sm:tracking-[0.6em]">
         VAULT
       </span>
-      <p class="max-w-sm text-sm text-paper-oklch/60 center">
+      <p class="max-w-sm text-sm text-paper-oklch/60">
         안전한 개인 클라우드 스토리지.
       </p>
       <NuxtLink
