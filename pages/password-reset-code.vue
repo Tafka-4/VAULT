@@ -14,7 +14,7 @@
           <p class="text-sm text-paper-oklch/60">초대 코드와 계정 이메일을 입력해 새 암호를 설정하세요.</p>
         </div>
 
-        <form class="mt-5 space-y-4" @submit.prevent="handleRecover">
+        <form class="mt-5 space-y-5" @submit.prevent="handleRecover">
           <div class="space-y-2">
             <label for="code-email" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">이메일</label>
             <input
@@ -37,30 +37,32 @@
             />
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-2">
-              <label for="code-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
-              <input
-                id="code-password"
-                type="password"
-                placeholder="최소 8자"
-                minlength="8"
-                v-model="password"
-                required
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-              />
-            </div>
-            <div class="space-y-2">
-              <label for="code-confirm" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호 확인</label>
-              <input
-                id="code-confirm"
-                type="password"
-                minlength="8"
-                v-model="confirm"
-                placeholder="다시 입력"
-                required
-                class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-              />
+          <div class="space-y-3 rounded-xl bg-black/20 p-4 ring-1 ring-white/5">
+            <p class="text-xs uppercase tracking-[0.3em] text-paper-oklch/55">새 암호</p>
+            <p v-if="!canEditPassword" class="text-xs text-red-200/80">이메일과 초대 코드를 먼저 입력하세요.</p>
+            <div v-if="canEditPassword" class="grid gap-4 sm:grid-cols-2">
+              <div class="space-y-2">
+                <label for="code-password" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호</label>
+                <input
+                  id="code-password"
+                  type="password"
+                  placeholder="최소 8자"
+                  minlength="8"
+                  v-model="password"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="code-confirm" class="text-xs uppercase tracking-[0.32em] text-paper-oklch/55">새 암호 확인</label>
+                <input
+                  id="code-confirm"
+                  type="password"
+                  minlength="8"
+                  v-model="confirm"
+                  placeholder="다시 입력"
+                  class="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-paper-oklch placeholder:text-paper-oklch/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
             </div>
           </div>
 
@@ -69,7 +71,7 @@
 
           <button
             type="submit"
-            :disabled="pending"
+            :disabled="pending || !canEditPassword"
             class="tap-area w-full rounded-2xl bg-white/90 px-4 py-3 text-sm font-semibold text-black transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/40"
           >
             {{ pending ? '저장 중...' : '암호 재설정' }}
@@ -86,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getErrorMessage } from '~/utils/errorMessage'
 
 const auth = useAuth()
@@ -98,6 +100,7 @@ const confirm = ref('')
 const pending = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const canEditPassword = computed(() => Boolean(email.value && verificationCode.value))
 
 const handleRecover = async () => {
   errorMessage.value = ''
